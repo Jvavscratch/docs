@@ -1,0 +1,14 @@
+{
+  "name": "jvavscratch-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview",
+    "deploy": "vitepress build && touch dist/.nojekyll"
+  },
+  "dependencies": {
+    "vitepress": "^1.0.0-rc.36"
+  }
+}
