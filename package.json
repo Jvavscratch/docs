@@ -1,7 +1,9 @@
 {
   "name": "jvavscratch-docs",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
+  "license": "MPL-2.0",
   "scripts": {
     "dev": "vitepress dev",
     "build": "vitepress build",
@@ -9,6 +11,6 @@
     "deploy": "vitepress build && touch dist/.nojekyll"
   },
   "dependencies": {
-    "vitepress": "^1.0.0-rc.36"
+    "vitepress": "^1.6.3"
   }
 }

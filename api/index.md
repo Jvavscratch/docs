@@ -4,14 +4,14 @@
 
 ## 模块导航
 
-- [CLI模块](modules/cli.md) - 命令行工具
-- [Core模块](modules/core.md) - 核心转换引擎
-- [Generator模块](modules/generator.md) - Scratch项目生成器
-- [Decompiler模块](modules/decompiler.md) - Scratch项目反编译器
-- [Types模块](modules/types.md) - 类型系统
-- [Utils模块](modules/utils.md) - 工具函数
-- [Registry模块](modules/registry.md) - 组件注册和管理
-- [Runtime模块](modules/runtime.md) - 运行时执行环境
+- [CLI模块](/modules/cli) - 命令行工具
+- [Core模块](/modules/core) - 核心转换引擎
+- [Generator模块](/modules/generator) - Scratch项目生成器
+- [Decompiler模块](/modules/decompiler) - Scratch项目反编译器
+- [Types模块](/modules/types) - 类型系统
+- [Utils模块](/modules/utils) - 工具函数
+- [Registry模块](/modules/registry) - 组件注册和管理
+- [Runtime模块](/modules/runtime) - 运行时执行环境
 
 ## 通用API
 
@@ -293,10 +293,10 @@ jvavscratch在Node.js环境完全支持，在浏览器环境中支持以下特�
 
 ## 贡献指南
 
-如果您发现API文档中的错误或需要补充信息，请参考[贡献指南](../contributing.md)提交修复或建议。
+如果您发现API文档中的错误或需要补充信息，请参考[贡献指南](/contributing)提交修复或建议。
 
 ## 下一步
 
-- [深入了解各模块的详细API](modules/index.md)
-- [查看使用指南](../guide/getting-started.md)
-- [探索示例项目](../examples/index.md)
+- [深入了解各模块的详细API](/modules/)
+- [查看使用指南](/guide/getting-started)
+- [探索示例项目](/examples/index)

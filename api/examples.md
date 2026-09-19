@@ -807,5 +807,5 @@ createGame();
 ## 下一步
 
 - [查看API参考文档](index.md)
-- [探索更多教程](../guide/tutorials.md)
-- [了解高级功能](../advanced/index.md)
+- [探索更多教程](/guide/tutorials)
+- [了解高级功能](/advanced/index)
