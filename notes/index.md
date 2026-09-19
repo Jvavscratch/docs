@@ -1,18 +1,36 @@
-# 早期设计笔记
+---
+title: Early Design Notes
+---
 
-这里收录的是项目早期的内部设计笔记,由原仓库 `.trae/documents/` 目录迁入。
+# Early Design Notes
 
-::: warning 注意
-这些笔记写于 2026 年初,记录的是**当时的**代码分析与计划,**很可能已经过时**,请以当前代码与正式文档(指南 / 语法 / API / 模块)为准。
+This section preserves the project's early internal design notes, moved here from the
+`.trae/documents/` directory of the original repository.
+
+::: warning Historical archive — not current documentation
+These notes were written in early 2026 and record **the code analysis and plans of that time**.
+They are kept for the record only. Their conclusions may since have been superseded by the
+implementation, and they do **not** describe the current state of the project.
+
+In particular, they describe `registry` as a *component registry* — a registry of components and
+services inside the compiler. No such thing exists in the code. The only registry that really
+exists is the **package-management backend** (Express + SQLite) that `jvavscratch add` talks to,
+which is an unrelated thing that happens to share the name.
+
+For anything current, use the [guide](/guide/getting-started), [grammar](/grammar/),
+[API](/api/) and [module](/modules/) sections instead.
 :::
 
-## 笔记列表
+## Notes
 
-- [早期笔记 · 使用Jvavscratch实现冒泡排序程序](/notes/早期笔记-使用Jvavscratch实现冒泡排序程序)
-  —— 文件名虽为“冒泡排序”,实际内容是一份《项目分析与修复计划》。
-- [早期笔记 · 项目分析与修复计划(20260125)](/notes/早期笔记-plan_20260125_142319)
-  —— 与上一篇基本相同的分析,修复步骤略有差异。
-- [早期笔记 · 项目分析与修复计划(20260127)](/notes/早期笔记-plan_20260127_135949)
-  —— 同一份分析的最后一次修订版。
+- [Early note · Bubble sort in jvavscratch](/notes/bubble-sort-walkthrough)
+  — despite the file name, the contents are a *project analysis and fix plan*.
+- [Early note · Project analysis and fix plan (2026-01-25)](/notes/early-plan-20260125)
+  — substantially the same analysis, with slightly different fix steps.
+- [Early note · Project analysis and fix plan (2026-01-27)](/notes/early-plan-20260127)
+  — the last revision of the same analysis.
 
-三篇笔记的内容高度重合,讨论的都是:移除无效的 `workspaces` 配置、`err.ts` 中 `Error` 类的命名冲突、`transformSyntax.ts` 的 `@ts-ignore` 类型问题、`tree-optimise/index.ts` 的属性访问、`decompileFromSB3` 的目录创建,以及若干 TODO 与错误处理的完善。
+The three notes overlap heavily. All of them discuss removing a useless `workspaces` setting, a
+name clash on the `Error` class in `err.ts`, the `@ts-ignore` in `transformSyntax.ts`, property
+access in `tree-optimise/index.ts`, directory creation in `decompileFromSB3`, and assorted TODOs
+and error-handling gaps.

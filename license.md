@@ -1,12 +1,14 @@
-# 许可证
+---
+title: License
+---
 
-Jvavscratch 全项目统一采用 **Mozilla Public License 2.0 (MPL-2.0)**。
+# License
 
-MPL-2.0 是弱著佐权许可证:你可以自由使用、修改、再分发本项目,包括用于闭源
-软件;但对本项目自身文件的修改必须以 MPL-2.0 公开。它与 GPL 的主要区别在于
-"文件级"而非"整个程序"的传染范围。
+Every repository in the Jvavscratch project — `types`, `core`, `utils`, `generator`, `decompiler`, `cli` and `docs` — is released under the **Mozilla Public License 2.0 (MPL-2.0)**.
 
-以下为许可证全文。
+MPL-2.0 is a **weak, file-level copyleft** license. You are free to use, modify and redistribute the project, including as part of a closed-source product; what you must do in return is keep the files covered by the MPL — and any modifications you make to them — available in source form under the MPL-2.0. The copyleft is scoped to individual files rather than to the whole program, which is the main practical difference from the GPL. Because this project carries no "Incompatible With Secondary Licenses" notice, MPL-covered files may also be distributed under the GPL, LGPL or AGPL as Secondary Licenses (Section 3.3).
+
+The text below is Mozilla's official English license text and is the authoritative version. The paragraphs above are a summary only and are not legal advice.
 
 ---
 

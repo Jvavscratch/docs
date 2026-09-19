@@ -7,8 +7,7 @@
   "scripts": {
     "dev": "vitepress dev",
     "build": "vitepress build",
-    "preview": "vitepress preview",
-    "deploy": "vitepress build && touch dist/.nojekyll"
+    "preview": "vitepress preview"
   },
   "dependencies": {
     "vitepress": "^1.6.3"

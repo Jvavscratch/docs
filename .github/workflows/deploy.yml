@@ -1,0 +1,67 @@
+name: Deploy documentation to GitHub Pages
+
+# Builds the VitePress site and publishes it to GitHub Pages.
+#
+# This uses the GitHub Actions Pages flow, not a `gh-pages` branch: the built
+# `dist/` directory is uploaded as a Pages artifact and deployed by the Pages
+# service itself. That means the repository must have
+# Settings -> Pages -> Build and deployment -> Source set to "GitHub Actions".
+on:
+  push:
+    branches: [main]
+  # Allows deploying from the Actions tab without pushing a commit.
+  workflow_dispatch:
+
+# GITHUB_TOKEN permissions required by the Pages deployment: `pages` to publish,
+# `id-token` for the OIDC token that proves the deployment came from this workflow.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deployments race. Unlike most concurrency groups this one
+# deliberately does NOT cancel in progress: cancelling midway can leave a
+# half-published deployment, so queued runs wait their turn instead.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Fails the job on a dead link, which is the point: the check is on in
+      # .vitepress/config.mjs and the ignoreDeadLinks allowlist is empty.
+      - name: Build site
+        run: npm run build
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

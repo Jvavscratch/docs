@@ -1,42 +1,80 @@
-# Runtime 模块
+---
+title: Runtime module
+---
 
-::: warning 设计草案 · 尚未实现
-本文档描述的是规划中的设计,**当前代码库中尚无对应实现**。阅读时请勿据此认为这些 API 已经可用。
+# Runtime module
+
+::: warning Design draft — not implemented
+**There is no `Runtime` module in jvavscratch.** No repository in the organisation contains
+an execution engine, a `Runtime` class, `Runtime.create()`, or any of the methods on this
+page — a grep across the whole project finds nothing. Everything below is a **proposal**,
+kept because it records a direction the project considered, not because it can be used.
+
+Read [What actually happens today](#what-actually-happens-today) first. If you are looking
+for the functions you can call from jvavscratch source, you want the
+[API reference](/api/), not this page.
 :::
 
-Runtime模块是jvavscratch的运行时执行环境，负责执行转换后的Scratch代码，管理运行时状态，并提供各种内置功能和服务。该模块模拟了Scratch的执行引擎，确保代码按预期运行。
+The proposal: a JavaScript-side execution environment that would *host* a compiled project —
+starting and stopping it, stepping it frame by frame, exposing its variables and sprites to
+the surrounding program, and giving a debugger something to attach to. It would be the
+counterpart that jvavscratch does not have: the compiler turns source into blocks, and this
+would run the blocks.
 
-## 模块功能
+## What actually happens today
 
-Runtime模块主要提供以下功能：
+jvavscratch is an **ahead-of-time compiler**. There is no interpretation step at any point:
 
-1. 执行jvavscratch代码
-2. 管理运行时状态（变量、列表、精灵位置等）
-3. 提供绘图和交互API
-4. 处理事件和广播
-5. 模拟Scratch内置积木功能
-6. 性能监控和优化
+- Source files are parsed to a Babel AST, each node is mapped to Scratch block opcodes, and
+  the result is written out as an ordinary `project.json` and zipped into a `.sb3`
+  ([Modules · Core](/modules/core), [Modules · Generator](/modules/generator)).
+- **The runtime of a jvavscratch project is the Scratch VM** — Scratch itself, or TurboWarp.
+  Starting a project, executing its scripts, holding variable state, moving sprites, drawing
+  with the pen: all of that is the VM's job, and it does it from the blocks, not from
+  JavaScript.
+- `jvavscratch run [path]` builds the project and opens the `.sb3` in TurboWarp. That command
+  is pre-configured for Windows only. Elsewhere it reports the platform mismatch and suggests
+  either building and opening the file yourself, or passing `--bypass` to skip the check —
+  but the TurboWarp binary is still looked for at the default Windows per-user install path
+  (`C:/Users/<you>/AppData/Local/Programs/TurboWarp/TurboWarp.exe`), so bypassing the check on
+  another platform ends with `cannot find turbowarp app` rather than a running project.
 
-## API概述
+So the *shape* of an execution engine in this list — a project being loaded, sprites moving,
+broadcasts being delivered, variables changing — is a real thing that happens. It just
+happens inside the VM, driven by generated blocks, with no JavaScript API in front of it.
 
-### 核心API
+### Which parts of this draft describe something real
+
+| In the draft | What it corresponds to in the code |
+|---|---|
+| The built-in block catalogue (`move`, `turnRight`, `setX`, `show`, `playSound`, …) | The compiler's built-in block libraries, in `generator/src/generator/CallExpressionSub/{motion,looks,control,sensing,sound,pen,list,variable,broadcast,method}.ts`. These are **compile-time** mappings to opcodes, not host functions. The names are close to the draft's, and the authoritative list is the [API reference](/api/). |
+| Runtime state: variables, lists, sprite position, costume | Scratch VM state, produced by the `data_*`, `motion_*` and `looks_*` blocks the compiler emits. |
+| Broadcasts, pen, sound | The `event_broadcast*`, `pen_*` and `sound_*` opcodes. Broadcasting works; there is no receiver-registration API — `when I receive` is compiled from the `whenIReceive` construct in the dialect. |
+| "Executing jvavscratch code" | Compiling it and letting the VM run the output. There is no `execute(code)` entry point. |
+| Everything else — `Runtime.create`, `loadProject`, plugins, workers, `runInWorker`, profiling, object pooling, `batchUpdate`, `registry`-style event emitters, `setRenderPriority` | **No counterpart.** Nothing in this table below is implemented anywhere. |
+
+::: tip File an issue, not a pull request
+If you want one of these to become real, the useful first step is an issue describing the
+use case (a headless test runner? a debugger? a CI check that a project still runs?) — that
+is a large design decision, not a gap to be filled in quietly.
+:::
+
+## Proposed API (design draft)
+
+The remainder of this page is the draft as it was written. All of it is unimplemented.
+
+### Core
 
 #### `Runtime.create(options)`
 
-创建一个新的运行时实例。
+Creates a runtime instance.
 
-**参数：**
-- `options`: 运行时选项
-  - `fps`: 帧率（默认：30）
-  - `width`: 舞台宽度（默认：480）
-  - `height`: 舞台高度（默认：360）
-  - `headless`: 是否无头模式（默认：false）
-  - `debug`: 是否开启调试（默认：false）
+- `options.fps` — frame rate (default `30`).
+- `options.width` — stage width (default `480`).
+- `options.height` — stage height (default `360`).
+- `options.headless` — run without a window (default `false`).
+- `options.debug` — enable debug output (default `false`).
 
-**返回值：**
-- Runtime实例
-
-**示例：**
 ```javascript
 const { Runtime } = require('jvavscratch/runtime');
 const runtime = Runtime.create({
@@ -47,58 +85,33 @@ const runtime = Runtime.create({
 
 #### `start()`
 
-启动运行时。
+Starts the runtime. Returns a promise resolving to the instance.
 
-**返回值：**
-- Promise，解析为运行时实例
-
-**示例：**
 ```javascript
 await runtime.start();
 ```
 
 #### `stop()`
 
-停止运行时。
+Stops the runtime.
 
-**返回值：**
-- Promise
-
-**示例：**
 ```javascript
 await runtime.stop();
 ```
 
 #### `loadProject(project)`
 
-加载Scratch项目。
+Loads a Scratch project, either as an object or as a path to a project file.
 
-**参数：**
-- `project`: 项目对象或项目文件路径
-
-**返回值：**
-- Promise
-
-**示例：**
 ```javascript
-// 从对象加载
 await runtime.loadProject(projectData);
-
-// 从文件加载
 await runtime.loadProject('./project.sb3');
 ```
 
 #### `execute(code)`
 
-执行jvavscratch代码。
+Executes jvavscratch source and resolves with the result.
 
-**参数：**
-- `code`: 代码字符串或函数
-
-**返回值：**
-- Promise，解析为执行结果
-
-**示例：**
 ```javascript
 const result = await runtime.execute(`
   move(10);
@@ -106,16 +119,12 @@ const result = await runtime.execute(`
 `);
 ```
 
-### 状态管理API
+### State
 
 #### `getState()`
 
-获取当前运行时状态。
+Returns the current runtime state.
 
-**返回值：**
-- 状态对象
-
-**示例：**
 ```javascript
 const state = runtime.getState();
 console.log(state.sprites.length);
@@ -123,15 +132,8 @@ console.log(state.sprites.length);
 
 #### `setState(updates)`
 
-更新运行时状态。
+Applies a state update.
 
-**参数：**
-- `updates`: 状态更新对象
-
-**返回值：**
-- Promise
-
-**示例：**
 ```javascript
 await runtime.setState({
   variables: {
@@ -142,16 +144,8 @@ await runtime.setState({
 
 #### `getVariable(name, owner)`
 
-获取变量值。
+Reads a variable, optionally scoped to a sprite.
 
-**参数：**
-- `name`: 变量名称
-- `owner`: 所有者（精灵ID或名称，可选）
-
-**返回值：**
-- 变量值
-
-**示例：**
 ```javascript
 const score = runtime.getVariable('score');
 const playerHealth = runtime.getVariable('health', 'Player');
@@ -159,68 +153,35 @@ const playerHealth = runtime.getVariable('health', 'Player');
 
 #### `setVariable(name, value, owner)`
 
-设置变量值。
+Writes a variable, optionally scoped to a sprite.
 
-**参数：**
-- `name`: 变量名称
-- `value`: 变量值
-- `owner`: 所有者（精灵ID或名称，可选）
-
-**返回值：**
-- Promise
-
-**示例：**
 ```javascript
 await runtime.setVariable('score', 150);
 await runtime.setVariable('health', 80, 'Player');
 ```
 
-### 精灵管理API
+### Sprites
 
 #### `getSprites()`
 
-获取所有精灵。
+Returns every sprite.
 
-**返回值：**
-- 精灵数组
-
-**示例：**
 ```javascript
 const sprites = runtime.getSprites();
 ```
 
 #### `getSprite(idOrName)`
 
-获取指定精灵。
+Returns one sprite by ID or name.
 
-**参数：**
-- `idOrName`: 精灵ID或名称
-
-**返回值：**
-- 精灵对象
-
-**示例：**
 ```javascript
 const cat = runtime.getSprite('Cat');
 ```
 
 #### `createSprite(options)`
 
-创建新精灵。
+Creates a sprite. Options: `name`, `x`, `y`, `size`, `direction`, `costume`.
 
-**参数：**
-- `options`: 精灵选项
-  - `name`: 精灵名称
-  - `x`: x坐标
-  - `y`: y坐标
-  - `size`: 大小
-  - `direction`: 方向
-  - `costume`: 造型对象或名称
-
-**返回值：**
-- Promise，解析为创建的精灵对象
-
-**示例：**
 ```javascript
 const newSprite = await runtime.createSprite({
   name: 'Dog',
@@ -232,48 +193,26 @@ const newSprite = await runtime.createSprite({
 
 #### `deleteSprite(idOrName)`
 
-删除精灵。
+Deletes a sprite.
 
-**参数：**
-- `idOrName`: 精灵ID或名称
-
-**返回值：**
-- Promise
-
-**示例：**
 ```javascript
 await runtime.deleteSprite('Dog');
 ```
 
-### 广播API
+### Broadcasts
 
 #### `broadcast(message)`
 
-发送广播消息。
+Sends a broadcast.
 
-**参数：**
-- `message`: 广播消息名称
-
-**返回值：**
-- Promise
-
-**示例：**
 ```javascript
 await runtime.broadcast('game over');
 ```
 
 #### `whenIReceive(message, callback)`
 
-注册广播接收器。
+Registers a broadcast receiver and returns an ID for later removal.
 
-**参数：**
-- `message`: 广播消息名称
-- `callback`: 回调函数
-
-**返回值：**
-- 接收器ID（用于取消注册）
-
-**示例：**
 ```javascript
 const receiverId = runtime.whenIReceive('game over', () => {
   console.log('Game over received!');
@@ -282,462 +221,342 @@ const receiverId = runtime.whenIReceive('game over', () => {
 
 #### `cancelWhenIReceive(receiverId)`
 
-取消注册广播接收器。
+Removes a broadcast receiver.
 
-**参数：**
-- `receiverId`: 接收器ID
-
-**返回值：**
-- 无
-
-**示例：**
 ```javascript
 runtime.cancelWhenIReceive(receiverId);
 ```
 
-### 绘图API
+### Pen
 
 #### `penDown()`
 
-启用画笔。
+Puts the pen down.
 
-**返回值：**
-- 无
-
-**示例：**
 ```javascript
 runtime.penDown();
 ```
 
 #### `penUp()`
 
-禁用画笔。
+Lifts the pen.
 
-**返回值：**
-- 无
-
-**示例：**
 ```javascript
 runtime.penUp();
 ```
 
 #### `setPenColor(color)`
 
-设置画笔颜色。
+Sets the pen colour from a hex value or RGB triple.
 
-**参数：**
-- `color`: 颜色值（十六进制、RGB等）
-
-**返回值：**
-- 无
-
-**示例：**
 ```javascript
 runtime.setPenColor('#FF0000');
 ```
 
 #### `clearPen()`
 
-清除所有画笔痕迹。
+Clears everything the pen has drawn.
 
-**返回值：**
-- 无
-
-**示例：**
 ```javascript
 runtime.clearPen();
 ```
 
-### 声音API
+### Sound
 
 #### `playSound(soundName, sprite)`
 
-播放声音。
+Plays a sound, optionally from a named sprite.
 
-**参数：**
-- `soundName`: 声音名称
-- `sprite`: 精灵ID或名称（可选）
-
-**返回值：**
-- Promise
-
-**示例：**
 ```javascript
 await runtime.playSound('meow', 'Cat');
 ```
 
 #### `stopAllSounds()`
 
-停止所有声音。
+Stops every playing sound.
 
-**返回值：**
-- 无
-
-**示例：**
 ```javascript
 runtime.stopAllSounds();
 ```
 
-### 调试API
+### Debugging
 
 #### `log(message)`
 
-记录日志。
+Writes a log line.
 
-**参数：**
-- `message`: 日志消息
-
-**返回值：**
-- 无
-
-**示例：**
 ```javascript
 runtime.log('Debug info: ' + variableValue);
 ```
 
 #### `assert(condition, message)`
 
-断言条件，如果失败则抛出错误。
+Asserts a condition, throwing when it does not hold.
 
-**参数：**
-- `condition`: 条件表达式
-- `message`: 错误消息
-
-**返回值：**
-- 无
-
-**示例：**
 ```javascript
 runtime.assert(score > 0, 'Score must be positive');
 ```
 
-## 内置功能
+### Built-in block catalogue
 
-### 运动积木
+::: warning These are not runtime calls
+The catalogue below is how the draft imagined built-in functionality being invoked from a
+host program. In the real compiler, these identifiers are the **built-in block libraries**
+available in jvavscratch source: `move(10)` in a `.js` file compiles to a
+`motion_movesteps` block. See the [API reference](/api/) for the list that actually exists,
+and [Grammar](/grammar/) for how the constructs are written in the dialect.
+:::
+
+Movement:
 
 ```javascript
-// 移动
 move(10);
 
-// 转向
 turnRight(15);
 turnLeft(15);
 pointInDirection(90);
 pointTowards('Sprite1');
 
-// 位置
 setX(100);
 setY(50);
-glideTo(100, 50, 1); // 1秒内滑动到位置
+glideTo(100, 50, 1); // glide to the position over 1 second
 
-// 外观
 changeXBy(10);
 changeYBy(10);
 ```
 
-### 外观积木
+Looks:
 
 ```javascript
-// 显示/隐藏
 show();
 hide();
 
-// 大小
 changeSizeBy(10);
 setSizeTo(100);
 
-// 造型
 nextCostume();
 switchCostumeTo('costume2');
 
-// 特效
 changeEffectBy('color', 25);
 setEffectTo('color', 0);
 clearEffects();
 ```
 
-### 声音积木
+Sound:
 
 ```javascript
-// 播放声音
 playSound('pop');
 playSoundUntilDone('pop');
 
-// 音量
 changeVolumeBy(-10);
 setVolumeTo(100);
 
-// 音调
 changePitchBy(10);
 setPitchTo(100);
 ```
 
-### 事件积木
+Events:
 
 ```javascript
-// 当绿旗被点击
 whenGreenFlag(() => {
-  // 代码
+  // code
 });
 
-// 当收到广播
 whenIReceive('message', () => {
-  // 代码
+  // code
 });
 
-// 发送广播
 broadcast('message');
 broadcastAndWait('message');
 ```
 
-### 控制积木
+Control:
 
 ```javascript
-// 等待
-wait(1); // 等待1秒
+wait(1); // wait 1 second
 
-// 重复
 repeat(10, () => {
-  // 代码
+  // code
 });
 
-// 永远重复
 forever(() => {
-  // 代码
+  // code
 });
 
-// 条件
-if(condition, () => {
-  // 代码
+if (condition, () => {
+  // code
 });
 
 ifElse(condition, () => {
-  // 条件为真时
+  // when true
 }, () => {
-  // 条件为假时
+  // when false
 });
 ```
 
-### 侦测积木
+Sensing:
 
 ```javascript
-// 触摸检测
 touching('Sprite1');
 touchingColor('#FF0000');
 colorTouching('#FF0000', 'edge');
 
-// 距离
 distanceTo('Sprite1');
 
-// 键盘/鼠标
 keyPressed('space');
 mouseDown();
 mouseX();
 mouseY();
 
-// 计时器
 timer();
 resetTimer();
 ```
 
-### 运算积木
+Operators:
 
 ```javascript
-// 基本运算
 add(1, 2);
 subtract(5, 3);
 multiply(2, 3);
 divide(6, 2);
 
-// 比较
 lessThan(1, 2);
 greaterThan(3, 2);
 equals(5, 5);
 
-// 逻辑
 and(true, false);
 or(true, false);
 not(false);
 
-// 随机
 pickRandom(1, 10);
 
-// 字符串
 join('Hello', 'World');
 letter(1, 'Hello');
 lengthOf('Hello');
 contains('Hello', 'ell');
 ```
 
-### 变量积木
+Variables:
 
 ```javascript
-// 设置变量
 setVariable('score', 100);
 
-// 改变变量
 changeVariable('score', 10);
 
-// 显示/隐藏变量
 showVariable('score');
 hideVariable('score');
 ```
 
-### 列表积木
+Lists:
 
 ```javascript
-// 添加项
 addItem('apple', 'fruits');
 
-// 插入项
 insertItemAt(1, 'orange', 'fruits');
 
-// 删除项
 deleteItemAt(1, 'fruits');
 deleteAllOf('fruits');
 
-// 替换项
 replaceItemAt(1, 'grape', 'fruits');
 
-// 获取项
 itemAt(1, 'fruits');
 itemNumber('apple', 'fruits');
 lengthOfList('fruits');
 listContains('fruits', 'apple');
 ```
 
-## 事件系统
+### Events
 
-Runtime模块提供了丰富的事件系统，可以监听各种运行时事件：
+The draft's host-side event emitters, for observing a running project:
 
 ```javascript
-// 监听运行时启动
 runtime.on('start', () => {
   console.log('Runtime started');
 });
 
-// 监听运行时停止
 runtime.on('stop', () => {
   console.log('Runtime stopped');
 });
 
-// 监听帧更新
 runtime.on('frame', (frame) => {
   console.log('Frame:', frame);
 });
 
-// 监听精灵创建
 runtime.on('sprite:created', (sprite) => {
   console.log('Sprite created:', sprite.name);
 });
 
-// 监听变量变化
 runtime.on('variable:changed', (name, value, owner) => {
   console.log(`Variable ${name} changed to ${value}`);
 });
 ```
 
-### 可用事件
+| Event | Fired when | Arguments |
+|---|---|---|
+| `start` | The runtime starts | none |
+| `stop` | The runtime stops | none |
+| `frame` | Every frame | `frameNumber` |
+| `project:loaded` | A project finishes loading | `projectData` |
+| `sprite:created` | A sprite is created | `sprite` |
+| `sprite:deleted` | A sprite is deleted | `spriteId` |
+| `variable:changed` | A variable changes | `name`, `value`, `owner` |
+| `list:changed` | A list changes | `name`, `items`, `owner` |
+| `broadcast` | A broadcast is sent | `message` |
+| `key:down` | A key is pressed | `key` |
+| `key:up` | A key is released | `key` |
+| `mouse:down` | The mouse is pressed | `x`, `y` |
+| `mouse:up` | The mouse is released | `x`, `y` |
+| `mouse:move` | The mouse moves | `x`, `y` |
+| `error` | An error occurs | `error` |
 
-| 事件名称 | 触发条件 | 回调参数 |
-|---------|---------|--------|
-| start | 运行时启动时 | 无 |
-| stop | 运行时停止时 | 无 |
-| frame | 每帧更新时 | frameNumber |
-| project:loaded | 项目加载完成时 | projectData |
-| sprite:created | 创建精灵时 | sprite |
-| sprite:deleted | 删除精灵时 | spriteId |
-| variable:changed | 变量变化时 | name, value, owner |
-| list:changed | 列表变化时 | name, items, owner |
-| broadcast | 发送广播时 | message |
-| key:down | 按键按下时 | key |
-| key:up | 按键释放时 | key |
-| mouse:down | 鼠标按下时 | x, y |
-| mouse:up | 鼠标释放时 | x, y |
-| mouse:move | 鼠标移动时 | x, y |
-| error | 发生错误时 | error |
+### Performance
 
-## 性能优化
-
-### 批量操作
-
-对于多次状态更新，使用批量操作可以提高性能：
+Batched updates, for callers that would otherwise pay for one round trip per property:
 
 ```javascript
 runtime.batchUpdate(() => {
-  // 多个更新操作
   setVariable('score', 100);
   setVariable('level', 2);
   changeSizeBy(10);
 });
 ```
 
-### 对象池
-
-Runtime会自动维护精灵和资源的对象池，减少内存分配和垃圾回收：
+Object pooling of sprites and resources:
 
 ```javascript
-// 启用对象池（默认开启）
 runtime.setOption('useObjectPool', true);
-
-// 设置最大对象池大小
 runtime.setOption('objectPoolSize', 100);
 ```
 
-### 优化渲染
+Render priority:
 
 ```javascript
-// 设置渲染优先级
 runtime.setRenderPriority('sprite1', 10);
 
-// 禁用未使用精灵的渲染
 sprite.disableRender = true;
 ```
 
-## 高级用法
-
-### 自定义扩展
-
-可以通过Runtime模块的扩展机制添加自定义功能：
+### Extension and plugins
 
 ```javascript
-// 注册自定义函数
 runtime.registerFunction('customFunction', (a, b) => {
   return a * b;
 });
 
-// 调用自定义函数
-execute(`
-  const result = customFunction(5, 3);
-  console.log(result);
-`);
-```
-
-### 插件系统
-
-Runtime支持插件系统，可以加载外部插件扩展功能：
-
-```javascript
-// 加载插件
 await runtime.loadPlugin('./plugins/myPlugin.js');
 
-// 或从对象加载
 runtime.usePlugin({
   name: 'myPlugin',
   init(runtime) {
-    // 初始化插件
+    // initialise the plugin
   }
 });
 ```
 
-### 多线程支持
-
-对于复杂计算，可以使用多线程功能：
+### Workers
 
 ```javascript
-// 在工作线程中执行
 const result = await runtime.runInWorker(() => {
-  // 复杂计算
   let sum = 0;
   for (let i = 0; i < 1000000; i++) {
     sum += i;
@@ -746,56 +565,48 @@ const result = await runtime.runInWorker(() => {
 });
 ```
 
-## 调试与排错
-
-### 启用调试模式
+### Debugging and profiling
 
 ```javascript
-// 创建运行时时启用调试
 const runtime = Runtime.create({ debug: true });
 
-// 或动态开启调试
 runtime.enableDebug();
-
-// 查看调试信息
 runtime.getDebugInfo();
-```
 
-### 性能分析
-
-```javascript
-// 开始性能分析
 runtime.startProfiling();
-
-// 执行代码
 await runtime.execute(someCode);
-
-// 结束性能分析
 const profile = runtime.stopProfiling();
 console.log(profile);
 ```
 
-### 常见问题排查
+The draft's troubleshooting list:
 
-1. **代码执行无反应**
-   - 检查是否调用了`start()`方法
-   - 确保代码语法正确
-   - 检查错误日志
+1. **Code does nothing**
+   - Check that `start()` was called.
+   - Check the source for syntax errors.
+   - Check the error log.
 
-2. **性能问题**
-   - 减少不必要的精灵和效果
-   - 使用批量操作
-   - 优化循环逻辑
+2. **Performance problems**
+   - Reduce the number of sprites and effects.
+   - Batch updates.
+   - Simplify loop bodies.
 
-3. **渲染问题**
-   - 检查精灵位置和大小
-   - 确认造型和背景正确加载
-   - 验证舞台尺寸设置
+3. **Rendering problems**
+   - Check sprite positions and sizes.
+   - Check that costumes and backdrops load.
+   - Check the stage dimensions.
 
-## 最佳实践
+### Best practices from the draft
 
-1. **资源管理**：及时释放不再使用的资源
-2. **代码组织**：将复杂逻辑拆分为多个函数
-3. **错误处理**：使用try/catch捕获可能的错误
-4. **性能考虑**：避免在每帧执行昂贵的操作
-5. **调试习惯**：定期使用日志和调试功能监控运行状态
+1. **Manage resources.** Release what you no longer use.
+2. **Organise code.** Split complex logic into functions.
+3. **Handle errors.** Wrap work in `try`/`catch`.
+4. **Watch the cost.** Avoid expensive work every frame.
+5. **Debug deliberately.** Use logs and profiling rather than guesswork.
+
+## See also
+
+- [Modules · Registry](/modules/registry) — the other design draft, and the registry backend that *is* implemented.
+- [API reference](/api/) — the functions you can actually call from jvavscratch source.
+- [Grammar · Events](/grammar/events) — how event handlers are written in the dialect.
+- [Guide · Basic usage](/guide/basic-usage) — building and running a project.

@@ -1,180 +1,240 @@
-# 外观API
+---
+title: Looks
+---
 
-jvavscratch提供了丰富的外观API，使开发者能够控制角色的视觉效果，包括造型、大小、可见性和文字显示等。这些API对应Scratch中的外观类积木。
+# Looks
 
-## 造型控制函数
+The `looks` library covers everything in Scratch's Looks category: speech and thought bubbles,
+costumes, backdrops, size, graphic effects, layer order and visibility. It is available in both
+call forms — the commands are **statements** and the five readers are **values**.
 
-### switchCostume
+Costume and backdrop arguments are ordinary values, so both a name and a number work:
+`looks.switchCostumeTo("Costume2")` and `looks.switchCostumeTo(2)` do the same thing.
 
-```javascript
-// 切换到指定造型
-sprite.switchCostume("造型1");
-sprite.switchCostume(2); // 也可以使用索引
+## Statement functions
+
+| Call | Arguments | Becomes |
+|---|---|---|
+| `looks.say(message)` | text to display | `looks_say` |
+| `looks.sayForSeconds(message, seconds)` | text, duration | `looks_sayforsecs` |
+| `looks.think(message)` | text to display | `looks_think` |
+| `looks.thinkForSecs(message, seconds)` | text, duration | `looks_thinkforsecs` |
+| `looks.switchCostumeTo(costume)` | costume name or number | `looks_switchcostumeto` |
+| `looks.nextCostume()` | — | `looks_nextcostume` |
+| `looks.previousCostume()` | — | `looks_switchcostumeto` + `looks_costumenumbername` |
+| `looks.switchBackdropTo(backdrop)` | backdrop name or number | `looks_switchbackdropto` |
+| `looks.switchBackdropToAndWait(backdrop)` | backdrop **name literal** | `looks_switchbackdroptoandwait` |
+| `looks.nextBackdrop()` | — | `looks_nextbackdrop` |
+| `looks.previousBackdrop()` | — | `looks_switchbackdropto` + `looks_backdropnumbername` |
+| `looks.changeSizeBy(change)` | percentage points to add | `looks_changesizeby` |
+| `looks.setSizeTo(size)` | new size as a percentage | `looks_setsizeto` |
+| `looks.changeGraphicEffect(effect, change)` | effect name, amount | `looks_changeeffectby` |
+| `looks.setGraphicEffect(effect, value)` | effect name, new value | `looks_seteffectto` |
+| `looks.clearGraphicEffects()` | — | `looks_cleargraphiceffects` |
+| `looks.setLayer(layer)` | `"front"` or `"back"` | `looks_gotofrontback` |
+| `looks.changeLayer(direction, amount)` | direction, number of layers | `looks_goforwardbackwardlayers` |
+| `looks.show()` | — | `looks_show` |
+| `looks.hide()` | — | `looks_hide` |
+
+## Value functions
+
+| Call | Returns |
+|---|---|
+| `looks.size()` | the sprite's size as a percentage (`looks_size`) |
+| `looks.costumeIndex()` | the number of the current costume (`looks_costumenumbername`, `number`) |
+| `looks.costumeName()` | the name of the current costume (`looks_costumenumbername`, `name`) |
+| `looks.backdropIndex()` | the number of the current backdrop (`looks_backdropnumbername`, `number`) |
+| `looks.backdropName()` | the name of the current backdrop (`looks_backdropnumbername`, `name`) |
+
+## Speech and thought bubbles
+
+### `looks.say(message)` / `looks.sayForSeconds(message, seconds)`
+
+Shows a speech bubble above the sprite. `say` leaves it on screen until something replaces it;
+`sayForSeconds` waits for the given number of seconds and then removes it.
+
+```js
+looks.say("Hello, World!");          // stays until the next say/think
+looks.sayForSeconds("Ready...", 2);  // visible for two seconds
 ```
 
-将角色切换到指定名称或索引的造型。
+`message` is a value, so it can be built with `operation.join` or from variables:
 
-### nextCostume
-
-```javascript
-// 切换到下一个造型
-sprite.nextCostume();
+```js
+let score = 0;
+looks.say(operation.join("Score: ", score));
 ```
 
-将角色切换到下一个造型，如果已经是最后一个造型，则切换到第一个。
+### `looks.think(message)` / `looks.thinkForSecs(message, seconds)`
 
-### costumeNumber
+The same two blocks with a thought bubble instead of a speech bubble.
 
-```javascript
-// 获取当前造型编号
-const currentCostume = sprite.costumeNumber;
-sprite.say(`当前造型: ${currentCostume}`);
+```js
+looks.think("Hmm...");
+looks.thinkForSecs("Let me think about that.", 3);
 ```
 
-获取或设置角色的当前造型编号。
+## Costumes and backdrops
 
-## 大小控制函数
+### `looks.switchCostumeTo(costume)` / `looks.nextCostume()` / `looks.previousCostume()`
 
-### setSize
+`switchCostumeTo` accepts a costume name or its 1-based number. `nextCostume` advances one costume,
+wrapping around at the end. `previousCostume` is not a Scratch block: it compiles to
+*switch costume to (costume number − 1)*, using a subtraction and the costume-number reporter.
 
-```javascript
-// 设置角色大小（百分比）
-sprite.setSize(100); // 默认大小
-sprite.setSize(50); // 缩小到50%
-sprite.setSize(200); // 放大到200%
+```js
+looks.switchCostumeTo("Costume1");
+looks.switchCostumeTo(2);   // the same thing, by index
+looks.nextCostume();
+looks.previousCostume();
 ```
 
-设置角色的大小，以原始大小的百分比表示。
+### `looks.switchBackdropTo(backdrop)` / `looks.switchBackdropToAndWait(backdrop)`
 
-### changeSize
+Switches the stage backdrop. The `AndWait` variant does not finish until the backdrop has
+finished loading, and it additionally waits for any scripts the new backdrop starts.
 
-```javascript
-// 修改角色大小
-sprite.changeSize(10); // 增加10%
-sprite.changeSize(-5); // 减少5%
+```js
+looks.switchBackdropTo("Backdrop2");
+looks.switchBackdropToAndWait("Backdrop2");
 ```
 
-增加或减少角色的大小。
+::: warning `switchBackdropToAndWait` needs a literal name
+Unlike `switchBackdropTo`, this function builds a backdrop *menu* block and reads the name
+directly from the argument's source text. A name that is not a plain string literal — a variable,
+a concatenation, or a number — is replaced with an empty name, which selects nothing. Pass the
+literal:
 
-### size
+```js
+looks.switchBackdropToAndWait("Backdrop2"); // ✓
+let name = "Backdrop2";
+looks.switchBackdropToAndWait(name);        // ✗ the menu ends up empty
+```
+:::
 
-```javascript
-// 获取或设置角色大小
-const currentSize = sprite.size;
-sprite.say(`当前大小: ${currentSize}%`);
+### `looks.nextBackdrop()` / `looks.previousBackdrop()`
+
+As with costumes, `nextBackdrop` is a Scratch block and `previousBackdrop` is compiled to
+*switch backdrop to (backdrop number − 1)*.
+
+## Size
+
+### `looks.changeSizeBy(change)` / `looks.setSizeTo(size)`
+
+`changeSizeBy` adds to the current size, `setSizeTo` replaces it. Size is a percentage of the
+costume's natural size, so `100` is the original size, `50` is half, and `200` is double.
+Scratch itself clamps the result between 5% and 535%.
+
+```js
+looks.setSizeTo(100);
+looks.changeSizeBy(-10);
+looks.changeSizeBy(10);
 ```
 
-获取或设置角色的当前大小。
+### `looks.size()`
 
-## 文字显示函数
+Reads the current size back as a number.
 
-### say
-
-```javascript
-// 显示说话气泡
-sprite.say("你好，世界！");
-sprite.say(`得分: ${getVariable("score")}`);
+```js
+if (looks.size() < 100) {
+    looks.setSizeTo(100);
+}
 ```
 
-在角色头顶显示说话气泡，包含指定的文本。
+## Graphic effects
 
-### sayFor
+### `looks.changeGraphicEffect(effect, change)` / `looks.setGraphicEffect(effect, value)`
 
-```javascript
-// 显示说话气泡一段时间
-sprite.sayFor("Hello!", 2); // 显示2秒后消失
+Applies one of Scratch's seven graphic effects. The effect name is a string literal and is matched
+case-insensitively; a name that is not one of these — or a computed value — falls back to `COLOR`.
+
+| Effect | What it does |
+|---|---|
+| `"COLOR"` | rotates the hue |
+| `"FISHEYE"` | bulges the middle |
+| `"WHIRL"` | twists around the centre |
+| `"PIXELATE"` | makes the costume blocky |
+| `"MOSAIC"` | makes it blocky and blurry |
+| `"BRIGHTNESS"` | lightens or darkens |
+| `"GHOST"` | fades towards transparent |
+
+```js
+looks.setGraphicEffect("GHOST", 50);   // half transparent
+looks.changeGraphicEffect("COLOR", 25); // shift the hue
+looks.clearGraphicEffects();            // reset all seven
 ```
 
-在角色头顶显示说话气泡，持续指定的秒数后消失。
+Use Scratch's uppercase spelling. The match is case-insensitive, but the string is written into
+the project exactly as you typed it, and only the uppercase names are Scratch's own option values.
 
-### think
+### `looks.clearGraphicEffects()`
 
-```javascript
-// 显示思考气泡
-sprite.think("我在想什么...");
+Resets every graphic effect to 0.
+
+## Layer order
+
+### `looks.setLayer(layer)`
+
+Moves the sprite to the front or the back of the draw order.
+
+```js
+looks.setLayer("front");
+looks.setLayer("back");
 ```
 
-在角色头顶显示思考气泡，包含指定的文本。
+Anything that is not `"back"` falls back to `"front"`.
 
-### thinkFor
+### `looks.changeLayer(direction, amount)`
 
-```javascript
-// 显示思考气泡一段时间
-sprite.thinkFor("思考中...", 3); // 显示3秒后消失
+Moves the sprite a number of layers forwards or backwards.
+
+```js
+looks.changeLayer("forward", 1);
+looks.changeLayer("backward", 2);
 ```
 
-在角色头顶显示思考气泡，持续指定的秒数后消失。
+::: warning Known limitation
+The direction field is populated with `"front"` / `"back"`, but Scratch's
+*go to front / go backward layers* block expects `"forward"` / `"backward"`. As a result the
+direction you ask for is not reliably what the compiled block says. Check the block in the
+TurboWarp editor after building, or use `looks.setLayer("front")` / `looks.setLayer("back")` if you
+only need to jump to one end of the draw order.
+:::
 
-## 可见性控制函数
+## Visibility
 
-### show
+### `looks.show()` / `looks.hide()`
 
-```javascript
-// 显示角色
-sprite.show();
+Makes the sprite visible or invisible. A hidden sprite still runs its scripts, still moves and can
+still be touched by other sprites — `hide` is not the same as deleting the sprite.
+
+```js
+looks.hide();
+control.wait(1);
+looks.show();
 ```
 
-使角色变得可见。
+## Reading the current costume, backdrop and size
 
-### hide
+```js
+let n = looks.costumeIndex();
+let name = looks.costumeName();
+let backdrop = looks.backdropName();
 
-```javascript
-// 隐藏角色
-sprite.hide();
+looks.say(operation.join("costume ", name));
 ```
 
-使角色变得不可见。
+## Implementation notes
 
-### visible
+- `looks.previousCostume()` and `looks.previousBackdrop()` are rewritten into a
+  *switch … to (number − 1)* pair at compile time. They are the only two functions in this library
+  that do not map one-to-one onto a single Scratch block.
+- `looks.switchBackdropToAndWait` additionally emits a `looks_backdrops` shadow menu block.
+- `looks.changeGraphicEffect` and `looks.setGraphicEffect` store the effect name as written; only
+  the check is case-insensitive.
 
-```javascript
-// 获取或设置角色可见性
-const isVisible = sprite.visible;
-sprite.visible = false; // 等同于hide()
-sprite.visible = true; // 等同于show()
-```
+## See also
 
-获取或设置角色的可见性状态。
-
-## 特效控制函数
-
-### setEffect
-
-```javascript
-// 设置特效值
-sprite.setEffect("color", 50); // 设置颜色特效为50
-sprite.setEffect("fisheye", 30); // 设置鱼眼特效为30
-sprite.setEffect("whirl", 15); // 设置漩涡特效为15
-sprite.setEffect("pixelate", 10); // 设置像素化特效为10
-sprite.setEffect("mosaic", 5); // 设置马赛克特效为5
-sprite.setEffect("brightness", 20); // 设置亮度特效为20
-sprite.setEffect("ghost", 40); // 设置幽灵特效为40
-```
-
-设置指定类型的特效值。
-
-### changeEffect
-
-```javascript
-// 修改特效值
-sprite.changeEffect("color", 10); // 增加颜色特效
-sprite.changeEffect("brightness", -15); // 减少亮度特效
-```
-
-增加或减少指定类型的特效值。
-
-### clearEffects
-
-```javascript
-// 清除所有特效
-sprite.clearEffects();
-```
-
-清除角色的所有特效，恢复原始外观。
-
-## 注意事项
-
-1. 角色必须有多个造型才能使用nextCostume函数
-2. 特效值的有效范围通常为-100到100
-3. 设置ghost特效为100会使角色完全透明，等同于hide()
-4. 频繁切换造型可能导致动画效果不流畅，建议配合适当的等待时间
+- [Motion](/api/motion) — position and heading, which pair with size and layer changes.
+- [Sound](/api/sound) — the sound-effect blocks, which are separate from the graphic effects here.
+- [API Examples](/api/examples) — a costume animation and a fade-out.

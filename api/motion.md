@@ -1,157 +1,215 @@
-# 运动API
+---
+title: Motion
+---
 
-jvavscratch提供了丰富的运动API，使开发者能够控制角色的移动、旋转和位置。这些API对应Scratch中的运动类积木。
+# Motion
 
-## 基本移动函数
+The `motion` library drives the sprite's position, heading and rotation style. It is available in
+both call forms: the movement functions are **statements** (`motion.move(10);`) and the position
+readers are **values** (`motion.x()`).
 
-### move
+All fifteen statement functions and all three value functions are listed below. Coordinates are
+stage coordinates: `x` runs from `-240` (left) to `240` (right), `y` from `-180` (bottom) to
+`180` (top). Directions are degrees *clockwise* from up: `0` is up, `90` is right, `180` is down,
+`-90` (or `270`) is left.
 
-```javascript
-// 向前移动指定步数
-sprite.move(10); // 向前移动10步
-sprite.move(-5); // 向后移动5步
+## Statement functions
+
+| Call | Arguments | Becomes |
+|---|---|---|
+| `motion.move(steps)` | steps to move, along the current heading | `motion_movesteps` |
+| `motion.turnRight(degrees)` | degrees clockwise | `motion_turnright` |
+| `motion.turnLeft(degrees)` | degrees counter-clockwise | `motion_turnleft` |
+| `motion.gotoXY(x, y)` | target coordinates | `motion_gotoxy` |
+| `motion.goto(target)` | `"random"`, `"mouse"`, or a sprite name | `motion_goto` |
+| `motion.glide(seconds, x, y)` | duration, then target coordinates | `motion_glidesecstoxy` |
+| `motion.glideTo(seconds, target)` | duration, then a target (see note) | `motion_glideto` |
+| `motion.point(direction)` | absolute direction in degrees | `motion_pointindirection` |
+| `motion.pointTowards(target)` | `"mouse"` or a sprite name | `motion_pointtowards` |
+| `motion.changeX(dx)` | offset to add to the x coordinate | `motion_changexby` |
+| `motion.setX(x)` | new x coordinate | `motion_setx` |
+| `motion.changeY(dy)` | offset to add to the y coordinate | `motion_changeyby` |
+| `motion.setY(y)` | new y coordinate | `motion_sety` |
+| `motion.bounceOnEdge()` | — | `motion_ifonedgebounce` |
+| `motion.setRotationStyle(style)` | `"all around"`, `"left-right"`, `"don't rotate"` | `motion_setrotationstyle` |
+
+## Value functions
+
+| Call | Returns |
+|---|---|
+| `motion.x()` | the current x coordinate (`motion_xposition`) |
+| `motion.y()` | the current y coordinate (`motion_yposition`) |
+| `motion.direction()` | the current heading in degrees (`motion_direction`) |
+
+## Moving
+
+### `motion.move(steps)`
+
+Moves the sprite `steps` pixels along its current heading. A negative value moves backwards.
+
+```js
+motion.move(10);
+motion.turnRight(90);
+motion.move(-10); // back to where we started, facing right
 ```
 
-使角色向前或向后移动指定的步数。正数值向前，负数值向后。
+### `motion.turnRight(degrees)` / `motion.turnLeft(degrees)`
 
-### turnRight / turnLeft
+Turns the sprite in place. Turning is relative to the current heading, so
+`motion.turnRight(45); motion.turnRight(45);` is the same as one 90° turn.
 
-```javascript
-// 旋转指定角度
-sprite.turnRight(90); // 右转90度
-sprite.turnLeft(45); // 左转45度
+```js
+motion.turnLeft(45);
 ```
 
-使角色向右或向左旋转指定的角度（度数）。
+## Position
 
-### pointInDirection
+### `motion.gotoXY(x, y)`
 
-```javascript
-// 指向指定方向
-sprite.pointInDirection(90); // 指向右侧（90度）
-sprite.pointInDirection(0); // 指向上方（0度）
-sprite.pointInDirection(-90); // 指向左侧（-90度）
+Jumps the sprite to an absolute position, without animating the move.
+
+```js
+motion.gotoXY(0, 0);      // centre of the stage
+motion.gotoXY(-200, 150); // top-left area
 ```
 
-设置角色的朝向为指定的方向（度数）。0度为上方，90度为右侧，-90度为左侧，180度为下方。
+### `motion.goto(target)`
 
-## 位置控制函数
+Jumps to a moving target. The argument is read as a **string literal**:
 
-### goTo
+- `"random"` — a random position (becomes `_random_`)
+- `"mouse"` — the mouse pointer (becomes `_mouse_`)
+- anything else — the name of a sprite in the project
 
-```javascript
-// 移动到指定坐标
-sprite.goTo(0, 0); // 移动到舞台中心
-sprite.goTo(100, 50); // 移动到指定坐标
-
-// 移动到另一个角色
-sprite.goTo(otherSprite);
+```js
+motion.goto("random");
+motion.goto("mouse");
+motion.goto("Sprite2");
 ```
 
-将角色移动到舞台上的指定坐标位置，或者移动到另一个角色的位置。
+If the argument is not a string literal the compiler cannot know the target at build time and
+falls back to `"random"`. Scratch's goto menu only accepts a built-in target or a sprite name, so
+a *computed* target is not expressible — use `motion.gotoXY()` with `motion.x()` /
+`sensing.mouseX()` instead.
 
-### glideTo
+### `motion.glide(seconds, x, y)`
 
-```javascript
-// 平滑移动到指定位置，需要时间参数
-sprite.glideTo(2, 100, 50); // 用2秒时间平滑移动到(100,50)
+Glides to the given position over the given duration. The sprite is still draggable and can be
+interrupted while gliding.
 
-// 平滑移动到另一个角色
-sprite.glideTo(1, targetSprite);
+```js
+motion.glide(2, 100, -50); // two seconds to reach (100, -50)
 ```
 
-使角色平滑地移动到指定位置，第一个参数是移动所需的时间（秒）。
+### `motion.glideTo(seconds, target)`
 
-### setX / setY
+Glides to a moving target over the given duration. The target is matched the same way as
+`motion.goto()`.
 
-```javascript
-// 设置X坐标
-sprite.setX(100);
+::: warning Known limitation
+In the current implementation the target menu is read from the **first** argument, not the second,
+and the duration is read from the first argument too. So `motion.glideTo(2, "Sprite2")` uses `2`
+as the duration but falls back to a *random* target, because `2` is not a string literal. A real
+target only comes out when the target name is the first argument —
+`motion.glideTo("Sprite2", 2)` glides to `Sprite2`, though its duration is then the string
+`"Sprite2"` (i.e. 0 seconds). Prefer `motion.glide(seconds, x, y)` with `motion.x()` /
+`motion.y()` when you need a reliable animated move.
+:::
 
-// 设置Y坐标
-sprite.setY(-50);
+### `motion.changeX(dx)` / `motion.changeY(dy)`
+
+Adds an offset to one coordinate, leaving the other alone.
+
+```js
+motion.changeX(10);  // 10 to the right
+motion.changeY(-5);  // 5 down
 ```
 
-单独设置角色的X或Y坐标。
+### `motion.setX(x)` / `motion.setY(y)`
 
-### changeX / changeY
+Sets one coordinate to an absolute value.
 
-```javascript
-// 修改X坐标
-sprite.changeX(10); // 增加X坐标
-sprite.changeX(-5); // 减少X坐标
-
-// 修改Y坐标
-sprite.changeY(5); // 增加Y坐标（向上）
-sprite.changeY(-5); // 减少Y坐标（向下）
+```js
+motion.setX(-240); // against the left edge
+motion.setY(0);    // vertical centre
 ```
 
-增加或减少角色的X或Y坐标值。
+## Direction
 
-## 方向和位置信息函数
+### `motion.point(direction)`
 
-### direction
+Sets the heading to an absolute direction in degrees.
 
-```javascript
-// 获取或设置角色方向
-const currentDirection = sprite.direction;
-sprite.direction = 180; // 设置方向为向下
+```js
+motion.point(90);  // face right
+motion.point(0);   // face up
+motion.point(180); // face down
 ```
 
-获取或设置角色的当前朝向角度。
+### `motion.pointTowards(target)`
 
-### x / y
+Points the sprite at another sprite, or at `"mouse"`. The argument is read as a string literal and
+falls back to `"random"` when it is not one.
 
-```javascript
-// 获取或设置角色坐标
-const xPosition = sprite.x;
-const yPosition = sprite.y;
-sprite.x = 50;
-sprite.y = 25;
+```js
+motion.pointTowards("mouse");
 ```
 
-获取或设置角色的X和Y坐标。
+### `motion.setRotationStyle(style)`
 
-## 运动辅助函数
+Controls how the sprite's costume reacts to its heading. The argument is a string literal;
+`"left-right"`, `"don't rotate"` and `"all around"` are accepted, and anything else (including a
+computed value) becomes `"left-right"`.
 
-### bounceOnEdge
-
-```javascript
-// 设置碰到边缘反弹
-sprite.bounceOnEdge = true;
-
-// 取消碰到边缘反弹
-sprite.bounceOnEdge = false;
+```js
+motion.setRotationStyle("all around");  // the costume rotates
+motion.setRotationStyle("left-right");  // flips horizontally only
+motion.setRotationStyle("don't rotate");// the costume never turns
 ```
 
-当角色碰到舞台边缘时，是否反弹。
+## Bouncing
 
-### ifOnEdgeBounce
+### `motion.bounceOnEdge()`
 
-```javascript
-// 如果碰到边缘则反弹
-ifOnEdgeBounce();
-```
+If the sprite is touching the edge of the stage, reverses its heading so it stays on screen. On
+its own it does nothing when the sprite is not touching an edge, which makes it the usual partner
+of an edge test:
 
-如果角色碰到舞台边缘，则自动反弹。
-
-### isTouching
-
-```javascript
-// 检查是否碰到其他角色或边缘
-const isTouchingPlayer = sprite.isTouching(playerSprite);
-const isTouchingEdge = sprite.isTouching("edge");
-
-if (isTouchingEdge) {
-  sprite.bounceOnEdge = true;
+```js
+if (sensing.touching("edge")) {
+    motion.bounceOnEdge();
 }
 ```
 
-检查角色是否碰到另一个角色或舞台边缘。
+## Reading the current state
 
-## 注意事项
+The three readers return numbers and can be used anywhere a value is expected — as a function
+argument, in arithmetic, or on the right-hand side of an assignment.
 
-1. 舞台坐标范围通常为X: -240 到 240，Y: -180 到 180
-2. 移动函数会根据角色当前的朝向计算移动方向
-3. 使用glideTo函数时，角色在移动过程中可以被其他代码中断
-4. 频繁调用移动函数可能导致角色移动不流畅，建议使用适当的等待时间
+```js
+let x = motion.x();
+let y = motion.y();
+let heading = motion.direction();
+
+looks.say(operation.join("x=", x));
+```
+
+::: tip Headings are reported in the -180..180 range
+`motion.direction()` returns the Scratch value, so a sprite facing left reports `-90`, not `270`.
+:::
+
+## Implementation notes
+
+- `motion.goto`, `motion.glideTo` and `motion.pointTowards` build an extra menu block
+  (`motion_goto_menu`, `motion_glideto_menu`, `motion_pointtowards_menu`) alongside the block you
+  called. That is normal — it is how Scratch carries the target.
+- `motion.glideTo` has the argument-order defect described above.
+- `motion.setRotationStyle` compares the string literally, so `"left right"` (space instead of
+  hyphen) silently becomes `"left-right"`.
+
+## See also
+
+- [Looks](/api/looks) — costume and size changes that usually accompany movement.
+- [Built-in Functions](/api/builtins) — `sensing.distanceTo`, `sensing.touching` and the other
+  sensing reporters used with motion.
+- [API Examples](/api/examples) — a mouse follower and a bouncing sprite.

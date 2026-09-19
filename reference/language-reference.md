@@ -1,15 +1,25 @@
 ---
-title: 语言参考
+title: Language Reference
 ---
 
-# 语言参考
+# Language Reference
 
-> **说明**:本文档是 jvavscratch 的**语言参考**,由仓库根目录的主 `README.md` 迁入,内容与之保持一致。它同时覆盖 CLI/项目结构、语言特性(编程、类与继承、事件块)、`jvavscratch` 包注册表以及包(package)开发规范。
+> **About this page**: this is the language reference for jvavscratch. It covers the CLI and project
+> layout, the language itself (programming, classes and inheritance, event blocks), the
+> `jvavscratch` package registry and the specification for writing a package. It was originally the
+> root `README.md` of the single-repository project; the code has since been split into one
+> repository per package, and where a path is given below it refers to that layout.
 >
-> 如果你是第一次接触 jvavscratch,建议先读 [快速开始](/guide/getting-started);本文档更偏向逐条的语法与规范参考。
+> If you are new to jvavscratch, start with [Getting Started](/guide/getting-started) and come back
+> here for the item-by-item rules.
 
-<div align="center"> 
-  
+> [!NOTE]
+> jvavscratch is an **ahead-of-time compiler**, not an interpreter. The JavaScript you write is
+> translated into Scratch blocks at build time; the `.sb3` you get out contains blocks, with no
+> JavaScript runtime inside it.
+
+<div align="center">
+
 # `✨ Jvavscratch`
 
 **Convert JavaScript code to a usable Scratch project in realtime.**
@@ -17,40 +27,60 @@ title: 语言参考
 </div>
 
 ---
+
 This repository contains everything you need to start developing with JavaScript on [Scratch](https://scratch.mit.edu)!
 
 ## Prerequisites
 
 **This project requires you to have the following tools installed:**
+
 - [Node](https://nodejs.org) (version >= 16)
 
 ## Setup
 
 ### Installation
 
-Welcome to the Jvavscratch documentation! This `README` file will contain everything you need to know about the project.
-The first thing you'll need to do is download Jvavscratch. If you have `git` installed; you can simply run `git clone https://github.com/jvavscratch/jvavscratch` to download the latest version; else, you can download it from the github manually. Once downloaded, open the directory in which Jvavscratch is in, and run "`npm install`" to install dependencies! Once done, you should get a fancy message. Jvavscratch has been installed!
+The compiler is split across several repositories under the `Jvavscratch` organisation — `types`,
+`core`, `utils`, `generator`, `decompiler` and `cli` — and they build in that order, bottom-up.
+Install the CLI and set up a project as described in the [installation
+guide](/guide/installation); the short version is:
+
+```bash
+npm install
+jvavscratch -v     # print the version you have installed
+```
+
+The package-management backend (`registry`) is a separate, locally hosted service; see
+[The `jvavscratch` registry](#the-jvavscratch-registry) below.
 
 ### CLI
 
-You, the user, are provided with the handy CLI system, `jvavscratch`. You can run `jvavscratch -v` to check the current version.
+You, the user, are provided with the handy CLI system, `jvavscratch`. Run `jvavscratch -v` to check
+the current version.
 
-Everything in Jvavscratch is handled in a project. There are 2 ways to create a project:
- - `jvavscratch init`: Creates a `jvavscratch` project in the current directory
- - `jvavscratch new [name = "my-project"] [path = "./"]`: Creates a `jvavscratch` project with the given name at the given location
+Everything in jvavscratch is handled in a project. There are 2 ways to create a project:
 
-Let's create a new project. we can run `jvavscratch new` to create a blank project, "my-project". There are now a handful of other commands we can use to make this project functional:
- - `jvavscratch run`: Builds & runs the currently-open project
- - `jvavscratch build`: Builds the currently-open project
- - `jvavscratch add [...lib]`: Add packages
- - `jvavscratch remove`: Remove packages
- - `jvavscratch update`: Update newly added packages in `jvavscratch.toml`
+- `jvavscratch init`: Creates a `jvavscratch` project in the current directory
+- `jvavscratch new [name = "my-project"] [path = "./"]`: Creates a `jvavscratch` project with the given name at the given location
 
-Currently, we're only interested in `jvavscratch run` and `jvavscratch build`. `jvavscratch run` will build your project into an `sb3`, and open it with the [TurboWarp](https://turbowarp.org/editor) app (if installed). `jvavscratch build` just builds the project into an `sb3`. The `sb3` and `sb3` source can be found in `root/targets`.
+Let's create a new project. Run `jvavscratch new` to create a blank project, `my-project`. There are
+a handful of other commands we can use to make this project functional:
+
+- `jvavscratch run`: Builds & runs the currently-open project
+- `jvavscratch build`: Builds the currently-open project
+- `jvavscratch add [...lib]`: Add packages
+- `jvavscratch remove`: Remove packages
+- `jvavscratch update`: Update newly added packages in `jvavscratch.toml`
+
+Currently, we're only interested in `jvavscratch run` and `jvavscratch build`. `jvavscratch run`
+will build your project into an `sb3`, and open it with the [TurboWarp](https://turbowarp.org/editor)
+app (if installed). `jvavscratch build` just builds the project into an `sb3`. The `sb3` and the
+generated `project.json` can be found in `target/`.
 
 ### File structure
 
-Now lets focus on the file structure, since there's a lot going on. It should look something like:
+Now let's focus on the file structure, since there's a lot going on. It should look something like:
+
 ```bash
 my-project:
     > assets
@@ -64,11 +94,18 @@ my-project:
     > project.d.json
 ```
 
-`assets` simply contains.. assets for your project. That be costumes, sounds, etc. The purpose of `lib` will be covered later, so we don't need to worry about that now. `src` contains the scripts for our sprites, and `target` is where the built `sb3` will be placed. `jvavscratch.toml` will also be covered later. Finally, `project.d.json` contains project data.
+`assets` simply contains.. assets for your project. That be costumes, sounds, etc. The purpose of
+`lib` will be covered later, so we don't need to worry about that now — although note that it must
+exist (an empty directory is fine), otherwise the build stops with an error. `src` contains the
+scripts for our sprites, and `target` is where the built `sb3` will be placed. `jvavscratch.toml`
+will also be covered later. Finally, `project.d.json` contains project data.
 
-All of this is relatively simple. In `src`, we have a script named `Sprite1.js`. Since this is a standalone script with a name, it means that the script represents the entire sprite. We can't have another script representing the sprite.
+All of this is relatively simple. In `src`, we have a script named `Sprite1.js`. Since this is a
+standalone script with a name, it means that the script represents the entire sprite. We can't have
+another script representing the sprite.
 
-To have multiple scripts representing a sprite, we can create a folder with the name of the sprite, and bundle all of our scripts. For example:
+To have multiple scripts representing a sprite, we can create a folder with the name of the sprite,
+and bundle all of our scripts. For example:
 
 ```bash
 src
@@ -78,7 +115,8 @@ src
         > foobar.js
 ```
 
-In this example, `foo`, `bar`, and `foobar` all belong to `Sprite1`. If you had *another* folder inside of that, it would be ignored, meaning:
+In this example, `foo`, `bar`, and `foobar` all belong to `Sprite1`. If you had *another* folder
+inside of that, it would be ignored, meaning:
 
 ```bash
 src
@@ -89,7 +127,8 @@ src
             > foobar.js
 ```
 
-.. Is the exact same as the previous example. But, if that folders name starts with a "&", then the contents won't be ignored. E.x:
+.. Is the exact same as the previous example. But, if that folder's name starts with a "&", then the
+contents won't be ignored. E.x:
 
 ```bash
 src
@@ -99,9 +138,11 @@ src
         > &mySubFolder
             > foobar.js
 ```
+
 `foobar.js` will be treated as its own sprite, while `foo` and `bar` both belong to `Sprite1`.
 
-The `assets` folder contains sub-folders for each sprite, and a special one named `stage` (which you MUST have for the `sb3` to build). Inside of that, you can find a structure similar to:
+The `assets` folder contains sub-folders for each sprite, and a special one named `stage` (which you
+MUST have for the `sb3` to build). Inside of that, you can find a structure similar to:
 
 ```bash
 > Sprite1
@@ -112,11 +153,13 @@ The `assets` folder contains sub-folders for each sprite, and a special one name
     > sound
         > sound.json
 
-    >sprite.json
+    > sprite.json
 ```
 
-`sprite.json` contains details for the sprite that we're using; that be the `x`, `y`, `direction`, etc.
-Both the `sound` and `costumes` folder house assets for either sounds or costumes. Each have a `.json` representing the scratch objects. For example, a costume with the name "Costume1" with a path of 'default.png' would be:
+`sprite.json` contains details for the sprite that we're using; that be the `x`, `y`, `direction`,
+etc. Both the `sound` and `costumes` folder house assets for either sounds or costumes. Each have a
+`.json` representing the scratch objects. For example, a costume with the name "Costume1" with a
+path of 'default.png' would be:
 
 ```json
 [
@@ -126,8 +169,17 @@ Both the `sound` and `costumes` folder house assets for either sounds or costume
   }
 ]
 ```
+
 > [!TIP]
 > All files must be placed in the root of the `costumes` / `sound` folder. Do not add sub-folders. We also have a special `stage` sprite, which instead of building to a sprite, builds to (surprisingly), the stage!
+
+Two more settings live in `jvavscratch.toml` alongside `name`, `description` and `version`:
+
+- `list_index_base` — `0` or `1`, and controls whether list access is zero- or one-indexed. Any
+  other value warns and is treated as `1`.
+- `custom_block_return` — when `true`, procedures may return values through the TurboWarp
+  `procedures_return` extension instead of the temporary-variable trick described under
+  [Functions](#functions).
 
 # Programming
 
@@ -137,11 +189,13 @@ Opening the generated JS program, you should see something like:
 looks.say("Hello, World!");
 ```
 
-This program is pretty self-explanitory. It makes the sprite say, "Hello, World!". There are a variety of JS features that are natively ported:
+This program is pretty self-explanatory. It makes the sprite say, "Hello, World!". There are a
+variety of JS features that are natively ported:
 
 ## Variables & assignment
 
-All variables are global by default. If you have a variable and a list with the same name, the `sb3` will not build correctly.
+All variables are global by default. If you have a variable and a list with the same name, the `sb3`
+will not build correctly.
 
 ```js
 let x = 3; // Valid
@@ -159,17 +213,25 @@ looks.say(myStr);
 ```
 
 You can force a variable to be private by prefixing the name with `_l_`:
+
 ```js
 let _l_test = 5; // local variable "test"
 ```
 
 If needed, a global variable can be created by prefixing the name with `_g_`:
+
 ```js
 let _g_test = 5; // global variable "test"
 let _g__l_test = 5; // global variable "_l_test"
 ```
 
+> [!CAUTION]
+> The `_g_` prefix is currently stripped twice rather than once, so `let _g_test = 5;` declares a
+> variable called `t`, not `test`. Since variables are already global by default, write plain names
+> and ignore `_g_` until this is fixed.
+
 Although disabled, a cloud variable can be created by prefixing the name with `_c_`:
+
 ```js
 let _c_test = 5; // cloud variable "test"
 ```
@@ -181,14 +243,27 @@ let _c_test = 5; // cloud variable "test"
 > Naming a cloud, global, or local variable the same name will cause the build to fail.
 
 These variables are then referenced like normal:
+
 ```js
 let _l_private = "private variable";
 private = "test";
 ```
 
+Two pieces of sugar are rewritten before generation, so they work anywhere a value does:
+
+```js
+looks.say(myList[1]);     // list.getItem("myList", 1)
+looks.say(myList.length); // list.length("myList")
+myList[1] = 5;            // list.replace("myList", 1, 5)
+```
+
 ## Logical expressions
 
-Keep in mind scratch is very strict with logical expressions. In some cases, Jvavscratch will attempt to solve them if they're not allowed in scratch, but it's better to know what the limitations are to avoid errors. A logical operator (`not`, `and`, `or`) can only have 2 possible values on either side. Another spiky block, a logical operator, or a binary operator (such as `<`, and `>`).
+Keep in mind scratch is very strict with logical expressions. In some cases, jvavscratch will
+attempt to solve them if they're not allowed in scratch, but it's better to know what the
+limitations are to avoid errors. A logical operator (`not`, `and`, `or`) can only have 2 possible
+values on either side. Another spiky block, a logical operator, or a binary operator (such as `<`,
+and `>`).
 
 ```js
 5 && 3 // Invalid
@@ -202,6 +277,13 @@ Keep in mind scratch is very strict with logical expressions. In some cases, Jva
 > !("hello") // Invalid
 > !(5 == 2) // Valid
 > ```
+
+A condition that is not itself boolean is wrapped for you: an `if` or `while` whose condition is a
+plain value compiles to `not(equals(value, 0))`.
+
+Outside a condition, `&&` and `||` are rewritten into a ternary so the short-circuit behaviour
+survives; ternary expressions themselves are rewritten into an `if`/`else` that assigns a temporary
+variable, because Scratch has no conditional expression.
 
 ## Control flow
 
@@ -253,19 +335,35 @@ foo(); // This will not be in the final program,
 
 ### For Statements
 
-`for statements`, again, are exactly like normal JS; the only exception being the first parameter must be an identifier:
+`for statements` are compiled to a `repeat until` loop: the condition is negated for the loop test,
+and the update expression is moved to the top of the loop body. All three parts have to look a
+particular way:
+
+- the initialiser must be an identifier or an assignment — `for (let i = 0; ...)` is accepted only
+  because the declaration is hoisted out of the loop first. `var i = 0` is **not** hoisted, and
+  fails with *"The first argument of a For loop must be an identifier or assignment expression."*
+- the test must be a binary, logical or unary expression
+- the update, if you write one, must be a `++`/`--` update or an assignment; if you leave it out it
+  defaults to `i++`.
 
 ```js
 let i = 0;
-for (i; i < 10) // Defaults to "i++";
+for (i; i < 10;) // The update may be omitted, as long as both semicolons are there.
 {
     looks.say(i); 
 }
 ```
 
+> [!NOTE]
+> The two-semicolon form is required by JavaScript itself, so write `for (i; i < 10;)`, not
+> `for (i; i < 10)`.
+
 ### Switch statements
 
-`switch statements`, in the final build, are compiled to `if statements`, so it's recomended you use `if statements` instead of them! `switch statements` still work as normal. `break` is not necessary as the code won't flow through, so you can ommit it from your code.
+`switch statements`, in the final build, are compiled to `if statements`, so it's recommended you use
+`if statements` instead of them! `switch statements` still work as normal. `break` is not necessary
+as the code won't flow through, so you can omit it from your code — a `break` that is left in place
+only produces a `No impl for 'BreakStatement'` warning and is otherwise ignored.
 
 ```js
 switch(foo)
@@ -281,6 +379,11 @@ switch(foo)
 }
 ```
 
+> [!CAUTION]
+> A `default:` clause currently breaks the build with an internal error
+> (`Property test of IfStatement expected node to be of a type ["Expression"] but instead got undefined`).
+> Always write an explicit case that covers the fallback.
+
 ### Assignment
 
 All compound operators (`++`, `--`, `+=`, `-=`, `*=`, `/=`) are present and can be used.
@@ -288,29 +391,34 @@ All compound operators (`++`, `--`, `+=`, `-=`, `*=`, `/=`) are present and can 
 ### Functions
 
 All blocks provided in scratch (other than extension blocks, by default) are available for use.
-Some blocks return values instead of blocks; meaning they won't work. For example:
+Some blocks return values instead of blocks; meaning they won't work as statements. For example:
 
 ```js
 let x = operation.join("Hello, ", "World!"); // Works
 operation.join("Hello, ", "World!"); // Unknown library "operation", Unknown function "join"
 ```
 
+Each library below is either a **block library** (the call becomes a stack block and must be used as
+a statement) or a **value library** (the call produces a reporter and must be used where a value is
+expected). `math`, `operation` and `util` are value libraries only — `math.random(1, 5);` on its own
+line is an error, `let n = math.random(1, 5);` is not.
+
 Here is a list of all functions:
+
 ```js
 motion.move(steps: number);
 motion.turnRight(degrees: number);
 motion.turnLeft(degrees: number);
-motion.turnRight(degrees: number);
 motion.gotoXY(X: number, Y: number);
-motion.goto(object: string);
+motion.goto(object: string); // "mouse" / "random", or a sprite name
 motion.glide(time: number, X: number, Y: number);
 motion.glideTo(time: number, object: string);
 motion.point(direction: number);
 motion.pointTowards(direction: string);
-motion.changeX(value: string);
-motion.setX(value: string);
-motion.changeY(value: string);
-motion.setY(value: string);
+motion.changeX(value: number);
+motion.setX(value: number);
+motion.changeY(value: number);
+motion.setY(value: number);
 motion.bounceOnEdge();
 motion.setRotationStyle(value: string);
 
@@ -318,7 +426,6 @@ looks.sayForSeconds(message: string, time: number);
 looks.say(message: string);
 looks.thinkForSecs(message: string, time: number);
 looks.think(message: string);
-looks.sayForSeconds(message: string, time: number);
 looks.switchCostumeTo(costume: string);
 looks.switchBackdropTo(backdrop: string);
 looks.switchBackdropToAndWait(backdrop: string);
@@ -328,11 +435,11 @@ looks.nextBackdrop();
 looks.previousBackdrop();
 looks.changeSizeBy(factor: number);
 looks.setSizeTo(value: number);
-looks.changeGraphicEffect();
 looks.changeGraphicEffect(type: string, value: number);
 looks.setGraphicEffect(type: string, value: number);
-looks.setLayer(layer: number);
-looks.changeLayer(amount: number);
+looks.clearGraphicEffects();
+looks.setLayer(type: "front" | "back"); // A number is accepted but always means "front"
+looks.changeLayer(type: "front" | "back", amount: number);
 looks.show();
 looks.hide();
 
@@ -350,7 +457,7 @@ broadcast.fireYield(name: string);
 
 control.wait(length: number);
 control.waitUntil(expression: string); // E.x: control.waitUntil("x < 3");
-control.stop(type: string);
+control.stop(type: "all" | "this script" | "other scripts in sprite");
 control.clone();
 control.deleteClone();
 control.heartbeat(length: number);
@@ -358,40 +465,6 @@ control.heartbeat(length: number);
 sensing.ask(question: string);
 sensing.resetTimer();
 sensing.setDragMode(type: string);
-sensing.touching(object: string);
-sensing.touchingColor(hex: string);
-sensing.distanceTo(object: string);
-sensing.mouseDown();
-sensing.keyDown(key: string);
-sensing.itemOfObject(a: string, b: string);
-sensing.current(dateType: string);
-
-math.random(min: number, max: number);
-math.mod(value: number);
-math.round(value: number);
-
-math.operation(type: "abs"     |
-                     "floor"   | 
-                     "ceiling" | 
-                     "sqrt"    | 
-                     "sin"     | 
-                     "cos"     | 
-                     "tan"     | 
-                     "asin"    | 
-                     "atan"    | 
-                     "in"      | 
-                     "log"     | 
-                     "e ^"     | 
-                     "10 ^",
-value: number);
-
-math.pi();
-math.pow(base: number, exponent: number); // This doesn't support negative exponents
-
-operation.join(...string: string);
-operation.getLetterOfString(letter: string, string: string);
-operation.getLengthOfString(string: string);
-operation.stringContains(stringA: string, stringB: string);
 
 variable.show(name: string);
 variable.hide(name: string);
@@ -406,19 +479,10 @@ list.deleteIndex(list: string, index: number);
 list.replace(list: string, index: number, value: any);
 list.show(list: string);
 list.hide(list: string);
-list.getItem(list: string, index: number);
-list.getItemIndex(list: string, value: any);
-list.length(list: string);
-list.contains(list: string, value: any);
 
 method.cleanup(classname: string); // Deletes all instances of a class
 method.set(class: string, instance: string, property: string, newValue: any); // Sets a property of an instance
 method.destroy(class: string, instance: string);
-
-method.get(class: string, instance: string, property: string); // Gets a property of an instance
-method.instancesOf(class: string); // How many instances of a class currently exist
-
-util.getReturnAddress(functionName: string); // Returns a reference to the return address of a function
 
 pen.clear();
 pen.stamp();
@@ -433,7 +497,8 @@ pen.setColor(hex: string);
 
 #### Special constants
 
-The following functions are constants:
+These are the read-only reporter functions — the constants the sprite already knows — followed by
+the rest of the value libraries. All of them produce a value, so use them where a value is expected:
 
 ```js
 motion.x();
@@ -455,7 +520,65 @@ sensing.loudness();
 sensing.timer();
 sensing.daysSince2000();
 sensing.username();
+sensing.touching(object: string);
+sensing.touchingColor(hex: string);
+sensing.colorIsTouchingColor(from: string, to: string);
+sensing.distanceTo(object: string);
+sensing.mouseDown();
+sensing.keyDown(key: string);
+sensing.itemOfObject(a: string, b: string);
+sensing.current(dateType: string);
+
+math.random(min: number, max: number);
+math.mod(dividend: number, divisor: number);
+math.round(value: number);
+math.operation(type: "abs"     |
+                     "floor"   | 
+                     "ceiling" | 
+                     "sqrt"    | 
+                     "sin"     | 
+                     "cos"     | 
+                     "tan"     | 
+                     "asin"    | 
+                     "atan"    | 
+                     "in"      | 
+                     "log"     | 
+                     "e ^"     | 
+                     "10 ^",
+value: number);
+math.pi();
+math.pow(base: number, exponent: number); // This doesn't support negative exponents
+
+operation.join(...string: string);
+operation.getLetterOfString(letter: string, string: string);
+operation.getLengthOfString(string: string);
+operation.stringContains(stringA: string, stringB: string);
+
+list.getItem(list: string, index: number);
+list.getItemIndex(list: string, value: any);
+list.length(list: string);
+list.contains(list: string, value: any);
+
+method.get(class: string, instance: string, property: string); // Gets a property of an instance
+method.instancesOf(class: string); // How many instances of a class currently exist
+
+util.getReturnAddress(functionName: string); // Returns a reference to the return address of a function
 ```
+
+`Math` calls are aliased onto those value functions, so the usual JavaScript spellings work too:
+
+```js
+Math.floor(2.5); // math.operation("floor", 2.5)
+Math.random();   // math.random(0, 1)
+Math.PI;         // math.pi()
+```
+
+> [!WARNING]
+> `list.length(list)` — and the `someList.length` sugar that produces it — sends the syntax
+> rewriter into infinite recursion, which is caught and printed as a `BABEL_TRANSFORM_ERROR` stack
+> trace. The build still succeeds and the block is still emitted, but every *other* rewrite in that
+> file is skipped, so constructs such as `**` or a ternary quietly stay untranslated. Prefer
+> `list.getItemIndex`-free code, or move the `length` call into its own file.
 
 You, the user, can also define your own functions like in normal JS:
 
@@ -511,7 +634,28 @@ doCode()
 looks.say("Hello!");
 ```
 
-It is also possible to return certain values in synchronous  and asynchronous contexts. As scratch cannot return values via functions natively, you must `util.getReturnAddress` to get the returned value:
+> [!CAUTION]
+> Arrow functions (`(x) => x + 1`) and function expressions (`function (x) { ... }`) are not
+> implemented at all — they fail with `No implementation for expression type 'ArrowFunctionExpression'`
+> / `'FunctionExpression'`. Use a named `function` declaration.
+
+It is also possible to return certain values in synchronous and asynchronous contexts. There are two
+mechanisms, and which one you get is decided by `custom_block_return` in `jvavscratch.toml`.
+
+With `custom_block_return = true`, a `return` compiles to the TurboWarp `procedures_return` block and
+the call can be used directly as a value:
+
+```js
+function getPi() {
+    return 3.141;
+}
+
+let x = getPi(); // the call itself produces the value
+```
+
+With `custom_block_return` off (the default), Scratch cannot return values from a procedure, so the
+returned value is stashed in a temporary variable and you must read it back explicitly with
+`util.getReturnAddress`:
 
 ```js
 function getPi() {
@@ -649,6 +793,7 @@ method.cleanup("Apple"); // Destroys all instances of "Apple"
 ## Inheritance
 
 All inheritance does is "inherit" properties and functions from other classes. For example:
+
 ```js
 class Fruit {
     color = "RED";
@@ -678,17 +823,18 @@ method.set("Apple", "myApple", "color", "green");
 myApple.eat(); // "The apple with the color: 'green' has a tastiness factor of: 15"
 ```
 
-The `super` keyword has not been implemented and is not planned.
+The `super` keyword has not been implemented and is not planned. A `super(...)` call is silently
+dropped rather than reported.
 
 ## Why use classes?
 
 As mentioned, classes are very unstable. A class is actually just a fixed space in an array, and any modifications to that array; and the whole class could be corrupted. Since classes don't deconstruct themselves too, it is up to you to figure out when that needs to happen.
 
-Classes are also quite slow when calling methods as every property also has to be passed through (WITH the arguments of that function too). A "procedual" approach would most likely be better as that is what scratch is designed for.
+Classes are also quite slow when calling methods as every property also has to be passed through (WITH the arguments of that function too). A "procedural" approach would most likely be better as that is what scratch is designed for.
 
 # Event blocks
 
-Sometimes, you may not want the green-flag to be the header block of your program. You can add a simple directive to change this; the following is a list of all the directives. Some directives require arguments to make them work (E.g, when KEY pressed). These directives MUST be on the first line:
+Sometimes, you may not want the green-flag to be the header block of your program. You can add a simple directive to change this; the following is a list of all the directives. Some directives require arguments to make them work (E.g, when KEY pressed). These directives MUST be on the first line — more precisely, the first comment in the file must be the directive, since a comment written above it would take its place:
 
 ```js
 //#whenflagclicked() -> When Green flag clicked
@@ -700,16 +846,36 @@ Sometimes, you may not want the green-flag to be the header block of your progra
 //#whenbroadcastreceived(Name: string) -> When broadcast received  -> Example: #whenbroadcastreceived("Message1")
 ```
 
+Notes on the arguments: an unrecognised key name falls back to `space`, an unrecognised backdrop to
+`backdrop1`, an unrecognised "when greater than" type to `LOUDNESS`, and an unrecognised broadcast
+to `message1`. A directive that is not one of the seven above is ignored, and the script keeps the
+default green-flag hat.
+
 # The `jvavscratch` registry
 
-`jvavscratch` does more than just create projects; it's a whole package manager! You can import a package from the `jvavscratch registry`, found [here](https://github.com/jvavscratch/jvavscratch-registry)!
+`jvavscratch` does more than just create projects; it's a whole package manager! Packages are
+fetched from the **`jvavscratch` registry**, a small Express + SQLite service that serves crate
+metadata, tarballs and a web front end.
+
+> [!NOTE]
+> The registry is a **local-only service**: it runs from its own repository, which is *not*
+> published on GitHub, and it defaults to `http://localhost:3000`. Point the CLI at another instance
+> with `jvavscratch registry set-url <url>`, and inspect the current value with
+> `jvavscratch registry get-url`.
+>
+> This is not to be confused with the "component registry" described in
+> [Modules → Registry](/modules/registry): that design — a registry of components and services
+> inside the compiler — was never implemented and exists only as a draft document.
 
 ## Adding packages to a project
 
 Open a project, and pick a package (along with a version). For example, lets choose `example-package`. We can simply run: `jvavscratch add example-package` to add it to the `lib` folder of our project.
 
 > [!WARNING]
-> This command may fail! It sends HTTP requests straight to the `git` api, meaning if you download too many packages in a short timeframe, errors may occur! It is actually better to specify the version you want to download (since it doesn't need to fetch the latest version, and instead downloads the specified version).
+> The package must exist in the registry. Downloads are served by the registry itself
+> (`/api/v1/crates`), not by the GitHub API; only `jvavscratch update`'s self-update path talks to
+> GitHub. Pinning a version is still the better habit, because it skips the "resolve the latest
+> version" round trip and protects you from a yanked release.
 
 You can specify a specific version to download like so: `name@version`, for example: `example-package@0.0.1`.
 
@@ -728,7 +894,9 @@ So, if you wanted to install `example-package`, version `0.0.1`:
 example-package = "0.0.1"
 ```
 
-This command is ran automatically everytime you build.
+> [!WARNING]
+> `jvavscratch build` no longer installs anything: a build only loads the packages already present
+> in `lib/`. Run `jvavscratch add` or `jvavscratch update` when you change `[dependencies]`.
 
 ## What even is a package?
 
@@ -760,9 +928,15 @@ my-package
     > jvavscratch.toml
 ```
 
-Unsurprisingly, `src` contains the source for our package, in `ts`. `utils` simply contains some blank type annotations for us (`.d.ts` files sometimes don't work!)
+Unsurprisingly, `src` contains the source for our package, in `ts`. `utils` simply contains some blank type annotations for us (`.d.ts` files sometimes don't work!).
 
-Lets create a simple package that adds functions / globals with the value of `tau`, `pi` * 2.
+> [!WARNING]
+> `src/index.ts` is `require()`d by the compiler during a build — a package extends the compiler
+> itself, not the program being compiled. `utils/library.ts` and `utils/internal.ts` are
+> **regenerated on every build** as re-export shims pointing at `@jvavscratch/utils`; never edit
+> them, and never rely on them being present in a build.
+
+Let's create a simple package that adds functions / globals with the value of `tau`, `pi` * 2.
 What we're looking for is a function that returns a value, a library, specifically known as a "valueLibrary".
 We can return (using `module.exports`) in this format to get ready to create our function:
 
@@ -880,7 +1054,7 @@ Compile and run...It works! We set `foo` to the global `tau`, which has the valu
 
 We can also add full blocks. It works exactly the same way `createValueFunction` works, but we use `createFunction` instead, and put it under `blockLibraries` instead of `valueLibraries`.  To actually
 ADD blocks, we need to utilise `BlockCluster`s (the `BlockClustering` type). These allow us to add clusters
-of blocks. We can use the method `addBlocks` to add an object full of blocks. A block can be created with the `CreateBlock` function, and it represents a scratch block. E.x:
+of blocks. We can use the method `addBlocks` to add an object full of blocks. A block can be created with the `createBlock` function, and it represents a scratch block. E.x:
 
 ```ts
 let id = "test"; // All blocks need a Block ID.
@@ -897,14 +1071,14 @@ blockCluster.addBlocks({
 > [!TIP]
 > Usually, you are provided with a `ParentId`. This is should be the ID of the first block you add. If your function returns a VALUE, it is the ID of the block your value is going to be added too.
 
-Finally, you're also provided with `implementations`, which allow you to override the code that runs when the program encounters a specific `babel` type. There are 2 types of `implementations`, `implements`, and `type_implements`.
+Finally, you're also provided with implementations, which allow you to override the code that runs when the program encounters a specific `babel` type. There are 2 kinds, exported as `statement_implements` and `type_implements`.
 
-`implements` are used for a `babel` type that represent a block, or a group of blocks, for example, `IfStatement`. `type_implements` are used for `babel` types that represent values, like a `NumericLiteral`.
+`statement_implements` are used for a `babel` type that represents a block, or a group of blocks, for example, `IfStatement`. `type_implements` are used for `babel` types that represent values, like a `NumericLiteral`.
 
-Like with globals, you can simply export it `implementations` under `implements`, or `type_implements`, depending on the type.
+Like with globals, you can simply export them under `statement_implements`, or `type_implements`, depending on the type.
 
 > [!TIP]
-> `implementations` actually override the default JS2Scratch scripts, meaning you could rewrite code for every aspect!
+> Implementations actually override the default JS-to-Scratch generators, meaning you could rewrite code for every aspect! For a statement node they are consulted **before** the built-in generator; for a library call the built-in table wins and a package can only add libraries the compiler doesn't already know.
 
 The `createImplementation` function is used to.. create an `implementation`. All you need to do to create an implementation, is to pass the `babel` type, along with a function that will be ran. E.x:
 
@@ -912,7 +1086,7 @@ The `createImplementation` function is used to.. create an `implementation`. All
 import { buildData, createImplementation } from "../utils/library";
 import { getScratchType, ScratchType } from "../utils/internal";
 import { NumericLiteral } from "@babel/types";
-import { BlockCluster } from "../../../../src/util/blocks";
+import { BlockCluster } from "@jvavscratch/core";
 
 module.exports = {
     type_implements: createImplementation<NumericLiteral>("NumericLiteral", ((blockCluster: BlockCluster, NumericLiteral, buildData: buildData) => {

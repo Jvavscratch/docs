@@ -1,129 +1,141 @@
-# 常见问题
+---
+title: Frequently Asked Questions
+---
 
-这里收集了用户在使用jvavscratch过程中可能遇到的常见问题和解答。如果您的问题没有在此处找到答案，请在[GitHub Issues](https://github.com/your-org/jvavscratch/issues)中提出。
+# Frequently Asked Questions
 
-## 基础问题
+Answers to common questions about jvavscratch. If your question is not covered here,
+please open an issue on [GitHub](https://github.com/Jvavscratch/cli/issues).
 
-### jvavscratch是什么？
+## Basics
 
-jvavscratch是一个强大的工具，允许开发者使用JavaScript语法编写代码，并将其转换为Scratch项目文件(.sb3)。它的主要目标是让有JavaScript编程经验的开发者能够更高效地创建Scratch项目。
+### What is jvavscratch?
 
-### jvavscratch支持哪些JavaScript特性？
+jvavscratch is a compiler that takes JavaScript source files and turns them into
+Scratch 3.0 project files (`.sb3`). It is **ahead-of-time compilation**, not a
+live interpreter — the output contains no JavaScript runtime.
 
-jvavscratch支持JavaScript的部分核心特性，包括：
-- 变量声明和赋值
-- 条件语句（if, else if, else）
-- 循环语句（while, for）
-- 函数定义和调用
-- 类定义和继承
-- 基本运算符
+### What JavaScript features are supported?
 
-请注意，由于Scratch的限制，jvavscratch不支持JavaScript的所有高级特性，如闭包、Promise、异步/await等。
+jvavscratch supports a subset of JavaScript:
 
-## 安装与配置
+- Variable declarations (`let`, `_g_` prefix for global scope)
+- Control flow (`if` / `else`, `while`, `for`, `for-in`, `switch`)
+- Functions (regular and `async`, with `turbo_` prefix for no-screen-refresh)
+- Classes (`class`, `extends`, `super`)
+- Basic operators, string concatenation, ternary expressions
+- Event directives (comment-based: `//#whenflagclicked`, etc.)
 
-### 安装jvavscratch需要什么环境？
+Features like closures, Promises, `async`/`await`, and modules are **not**
+supported because Scratch has no equivalent.
 
-jvavscratch需要以下环境：
-- Node.js v14.0.0或更高版本
-- npm v6.0.0或更高版本
+### How is this different from writing Scratch blocks directly?
 
-### 如何验证安装是否成功？
+jvavscratch lets you write JavaScript and have it compiled to a `.sb3` file
+without opening the Scratch editor. This is useful for:
 
-安装完成后，您可以在命令行中运行以下命令来验证安装是否成功：
+- Text-based workflows (version control, code review)
+- Programmatic project generation
+- Developers who prefer JavaScript syntax
+
+## Installation and setup
+
+### What are the prerequisites?
+
+- Node.js v16 or later
+- npm (or pnpm/yarn)
+
+### How do I install the CLI?
+
+```bash
+npm install -g github:Jvavscratch/cli
+```
+
+Then verify:
 
 ```bash
 jvavscratch --version
 ```
 
-如果安装成功，将显示jvavscratch的版本号。
+### Do I need to install packages for each project?
 
-## 使用问题
+Yes. Every project needs at least the default packages in `lib/`. Running
+`jvavscratch new` or `jvavscratch init` scaffolds a project with the correct
+`lib/` structure. Packages are downloaded from the Jvavscratch registry
+(the `jvavscratch add` command), **not** from npm.
 
-### 如何创建一个新的jvavscratch项目？
+## Building projects
 
-您可以使用以下命令创建一个新的jvavscratch项目：
+### How do I compile a project?
 
 ```bash
-jvavscratch init my-project
 cd my-project
-```
-
-### 如何编译jvavscratch项目为Scratch文件？
-
-在项目目录中运行以下命令来编译项目：
-
-```bash
 jvavscratch build
 ```
 
-编译后的Scratch文件将默认输出到`dist`目录。
+The output `.sb3` file is written to `target/<name>.sb3`.
 
-### 如何在开发过程中实时预览效果？
+### What does the `-o` flag do?
 
-您可以使用以下命令启动开发服务器，它将监视文件变化并自动重新编译：
+`jvavscratch build -o` enables the **alpha optimiser**, which post-processes
+the block dictionary to try to reduce redundant blocks. It is experimental and
+may produce incorrect output — always test the generated project.
 
-```bash
-jvavscratch dev
-```
-
-### jvavscratch支持自定义Scratch块吗？
-
-当前版本的jvavscratch主要支持Scratch的标准块。对于自定义块的支持，我们正在开发中。
-
-### 如何使用jvavscratch访问Scratch中的列表？
-
-您可以使用以下语法访问Scratch中的列表：
-
-```js
-// 引用名为 'example' 的列表
-let items = _list_example;
-```
-
-## 转换问题
-
-### 为什么我的JavaScript代码无法完全转换？
-
-jvavscratch只能转换与Scratch功能相对应的JavaScript特性。某些JavaScript高级特性（如闭包、Promise等）无法在Scratch中表示，因此会被转换为等效的简单实现或导致编译错误。
-
-### 如何处理转换错误？
-
-当遇到转换错误时，jvavscratch会提供详细的错误信息，包括错误位置和原因。您需要根据错误信息修改代码，使其符合jvavscratch的语法规则。
-
-## 性能问题
-
-### jvavscratch生成的Scratch项目性能如何？
-
-jvavscratch尽可能生成高效的Scratch积木块，但复杂的JavaScript逻辑可能会导致生成的Scratch项目性能下降。对于性能敏感的项目，建议优化JavaScript代码结构，避免复杂的嵌套逻辑。
-
-### 大型项目的编译速度如何？
-
-编译速度取决于项目的复杂度和文件数量。对于大型项目，编译时间可能会增加。如果您遇到编译性能问题，可以尝试将项目拆分为多个较小的模块。
-
-## 高级使用
-
-### 如何扩展jvavscratch的功能？
-
-jvavscratch采用模块化设计，您可以通过开发插件来扩展其功能。插件开发相关文档正在编写中。
-
-### 如何贡献代码到jvavscratch项目？
-
-我们欢迎社区贡献！请在GitHub上fork项目，创建您的特性分支，提交更改，然后创建Pull Request。详情请查看[贡献指南](/contributing)。
-
-## 故障排除
-
-### 编译时遇到"Cannot find module"错误怎么办？
-
-这通常意味着缺少依赖项。请尝试重新安装依赖：
+### How do I decompile an existing .sb3?
 
 ```bash
-npm install
+jvavscratch decompile my-project.sb3
 ```
 
-### 生成的Scratch文件在Scratch编辑器中无法打开怎么办？
+This creates a new project directory with the decompiled source.
 
-这可能是由于编译错误或生成的文件格式不正确。请检查编译过程中的错误信息，确保代码符合jvavscratch的语法规则。如果问题仍然存在，请在GitHub Issues中报告。
+## Common errors
 
-### 变量和列表同名会发生什么？
+### "Cannot find module" during build
 
-如果变量和列表同名，sb3将无法正确构建。请确保变量和列表使用不同的名称。
+This usually means a required package is missing from `lib/`. Re-run the
+dependency installation or check that `lib/` is not empty.
+
+### Generated .sb3 fails to open in Scratch
+
+The most common cause is a syntax error in your JavaScript that jvavscratch
+did not catch at build time. Check the `[Warn]:` and `[Fatal]:` lines in
+the build output. If the file is valid but Scratch refuses it, open an issue.
+
+### Variables and lists must have different names
+
+If a variable and a list share the same name, the Scratch runtime cannot
+distinguish them and the build will fail. Rename one of them.
+
+### Blocks appear in the wrong order
+
+Block order follows the **execution order** of your source code. If you see
+blocks out of order, check that your generator returns keys in the correct
+sequence (this is a contract the generators must honour).
+
+## Performance
+
+### Are generated projects as fast as hand-written Scratch?
+
+Generally yes, for straightforward code. Complex JavaScript logic may produce
+more blocks than a hand-optimised Scratch project. For performance-critical
+projects, keep the control flow simple and avoid deep nesting.
+
+### How long does a build take?
+
+For small projects, under a second. Large projects with many sprites and
+files may take several seconds. The build is I/O-bound (reading source files,
+writing the zip), so fast disks help.
+
+## Extending jvavscratch
+
+### Can I add my own blocks?
+
+Yes, through **compiler-extension packages**. A package can register new
+statement implementations, value implementations, and library functions.
+See [Extending jvavscratch](/extending) for details.
+
+### Can I contribute?
+
+Absolutely. The project is open source under MPL-2.0. See the
+[Contributing Guide](/contributing) for how to get started.

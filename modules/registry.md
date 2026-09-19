@@ -1,34 +1,228 @@
-# Registry 模块
+---
+title: Registry module
+---
 
-::: warning 设计草案 · 尚未实现
-本文档描述的是规划中的设计,**当前代码库中尚无对应实现**。阅读时请勿据此认为这些 API 已经可用。
+# Registry module
+
+::: warning Read this first
+This page documents **two unrelated things that both happen to be called "registry"**.
+
+1. The **[package registry backend](#the-package-registry-backend)** — an Express + SQLite
+   service that stores and serves compiler-extension packages. This is **real, implemented
+   code**: it lives in the `registry/` directory, and `jvavscratch add` talks to it.
+2. The **[component registry](#design-draft-the-component-registry-not-implemented)** — a
+   proposed in-compiler registry of variables, functions, sprites, broadcasts and lists,
+   reached through `Registry.getInstance()`. **This does not exist.** No file in any
+   jvavscratch repository implements it. It is kept here as a design draft only.
+
+Neither of these is the same thing as `core/src/util/registry.ts`, the *generator dispatch
+table* — that one is real too, and is documented under [Modules · Core](/modules/core).
 :::
 
-Registry模块负责jvavscratch中的组件注册和管理，提供了一个集中的注册中心，用于管理变量、函数、精灵、背景等各种组件。这个模块使得jvavscratch可以灵活地管理项目中的各种元素。
+## Three things called "registry"
 
-## 模块功能
+| Name | What it is | Status |
+|---|---|---|
+| `core/src/util/registry.ts` | The compiler's **dispatch registry**: statement generators, value generators and library tables, looked up by name. | Implemented |
+| `registry/` (separate local repository) | The **package registry backend**: an HTTP service that stores published packages and serves them to `jvavscratch add`. | Implemented, local-only |
+| `Registry.getInstance()` | A hypothetical **component registry** for Scratch project elements (variables, sprites, broadcasts, …). | Design draft — not implemented |
 
-Registry模块主要提供以下功能：
+The confusion is understandable: all three "register" something. But they have nothing else
+in common, and the rest of this page treats them separately.
 
-1. 注册和管理变量（全局变量、局部变量、云变量）
-2. 注册和管理函数（用户定义函数、内置函数）
-3. 注册和管理精灵和背景
-4. 注册和管理广播消息
-5. 注册和管理列表（数组）
-6. 提供统一的查询和访问接口
+## The package registry backend
 
-## API概述
+jvavscratch packages are `.tar.gz` archives that extend the compiler (see
+[Modules · Utils](/modules/utils#the-package-author-api)). They are
+distributed by a registry service — the same idea as crates.io, which the code's own
+description compares itself to.
 
-### 核心API
+### What it is
+
+A small Express 5 + SQLite service. It is a **separate repository, kept local and not
+published on GitHub**, so there is no `github:Jvavscratch/registry` dependency to install —
+you run it from a checkout.
+
+```
+registry/
+  server.js              Express app: middleware, static frontend, /api/v1 routes
+  db.js                  SQLite access (sqlite3), schema creation
+  routes/
+    crates.js            package CRUD, search, download, yank, owners
+    account.js           register, login, token, profile, change-password
+  middleware/
+    auth.js              JWT + API-token verification; JWT_SECRET guard
+    rateLimit.js         20 attempts / 15 minutes on credential endpoints
+  public/                static frontend (plain HTML + inline handlers)
+  storage/
+    registry.db          SQLite database — users, crates, versions, download stats
+    packages/            the uploaded .tar.gz files
+```
+
+### Running it
+
+```bash
+cd registry
+npm install
+
+# JWT_SECRET is required — the service exits immediately without it
+JWT_SECRET=$(openssl rand -hex 32) npm start
+```
+
+`npm start` runs `node --env-file-if-exists=.env server.js`, so the tidier route is to copy
+`.env.example` to `.env` and fill in a secret there. `npm run dev` is the same command with
+`--watch`.
+
+| Environment variable | Meaning |
+|---|---|
+| `JWT_SECRET` | **Required.** Signs and verifies login JWTs. When it is missing or blank the process prints a fatal error and calls `process.exit(1)` — there is deliberately no built-in fallback, because a default shipped in the source is a published signing key. |
+| `PORT` | Listen port. Default `3000`. |
+| `HOST` | Listen address. Default `0.0.0.0`. |
+| `CORS_ORIGIN` | Comma-separated allowlist of frontend origins. Unset means no CORS headers at all (same-origin requests and non-browser clients such as the CLI are unaffected). Never set it to `*`. |
+
+The CLI's default registry URL is `http://localhost:3000`
+(`cli/src/cli/config.ts`), so a locally running server is what `jvavscratch add`,
+`search`, `login` and `publish` reach out of the box.
+
+### The HTTP API
+
+All routes are under `/api/v1`. Endpoints marked **auth** require an
+`Authorization: Bearer <token>` header.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/health` | Liveness probe: `{"status":"ok","service":"jvavscratch-registry"}`. |
+| `GET` | `/stats` | Global counters: packages, total downloads, users, and the last 30 days of `download_stats`. |
+| `GET` | `/crates` | Search/list. Query parameters: `q`, `page`, `per_page` (capped at 100). Returns `{ crates, meta: { total, page, per_page, total_pages } }`. |
+| `GET` | `/crates/:name` | Package metadata, including every version and its yank state. |
+| `GET` | `/crates/:name/downloads` | Per-day download history for a package. |
+| `GET` | `/crates/:name/:version` | One version's metadata. |
+| `GET` | `/crates/:name/:version/files` | File listing inside the published archive. |
+| `GET` | `/crates/:name/:version/file` | A single file from the archive, for the web UI's file browser. |
+| `GET` | `/crates/:name/:version/download` | The tarball itself. This is what `jvavscratch add` fetches. |
+| `PUT` | `/crates/new` | **auth.** Publish. `multipart/form-data` with the tarball in the `crate` field (50 MB limit) plus `name`, `vers` and optional `description`, `readme`, `license`, `homepage`, `repository`, `keywords`. |
+| `DELETE` | `/crates/:name/:version/yank` | **auth.** Mark a version yanked, so it stops being a resolution target without being deleted. |
+| `PUT` | `/crates/:name/:version/unyank` | **auth.** Reverse a yank. |
+| `GET` | `/crates/:name/owners` | List a package's owners. |
+| `PUT` | `/crates/:name/owners` | **auth.** Add an owner by username. |
+| `POST` | `/account/register` | Create an account. Rate limited. |
+| `POST` | `/account/login` | Exchange username + password for a JWT and an API token. Rate limited. |
+| `POST` | `/account/token` | **auth**, rate limited. Regenerate the API token. |
+| `GET` | `/account/me` | **auth.** The authenticated account. |
+| `GET` | `/account/:username` | Public profile. |
+| `POST` | `/account/change-password` | **auth.** Change the password. |
+
+### Authentication
+
+Two credential shapes are accepted by the same header, and the middleware tries them in
+order (`middleware/auth.js`):
+
+- **JWTs** — signed with `JWT_SECRET`, valid for 30 days, carrying `{ id, username }`. Used by
+  the web frontend; returned by `/account/login` as `token`.
+- **API tokens** — prefixed `jvs_`, stored on the user row, returned by `/account/login` as
+  `api_token`. The value is `crypto.randomBytes(32)` in base64url, i.e. a real CSPRNG rather
+  than `Math.random()`. Used by the CLI.
+
+The middleware verifies the JWT first; if that fails it falls back to a lookup of the raw
+token against the users table. The CLI stores whichever token it received in
+`~/.jvavscratch/config.json` and sends it as `Bearer`.
+
+`POST /account/login`, `POST /account/register` and `POST /account/token` sit behind
+`middleware/rateLimit.js`: 20 requests per 15 minutes per IP, counting *all* requests rather
+than only failures, and not keyed by username (which would leak whether a username exists).
+
+::: warning `storage/registry.db` holds real credentials
+The database contains users' bcrypt password hashes and their API tokens in plaintext — the
+latter on purpose, so that logging in can return an existing token instead of invalidating
+it. The file is gitignored. Do not delete it, and do not commit it.
+:::
+
+### The CLI side
+
+Every command that touches packages goes through this service, not through GitHub:
+
+```bash
+jvavscratch search noise            # GET  /api/v1/crates?q=noise
+jvavscratch add my-lib@1.2.0        # GET  .../download, then untar into lib/
+jvavscratch add my-lib              # ...and with "*" as the version, the newest unyanked one
+jvavscratch remove my-lib           # delete lib/my-lib and its jvavscratch.toml entry
+jvavscratch update                  # re-resolve every dependency against the registry
+jvavscratch publish                 # PUT  /api/v1/crates/new
+```
+
+Account and endpoint management:
+
+```bash
+jvavscratch register                # POST /api/v1/account/register
+jvavscratch login                   # POST /api/v1/account/login
+jvavscratch registry get-url
+jvavscratch registry set-url http://localhost:3000
+jvavscratch registry set-token jvs_...
+jvavscratch registry logout
+```
+
+What `add` does in detail: it looks up the crate by name, resolves `*` to the newest version
+that is not yanked (an explicit version must exist and not be yanked), downloads the tarball,
+extracts it into `lib/<name>/` with one path component stripped, and records the resolved
+version in `jvavscratch.toml`. `update` walks the dependencies in the manifest, asks the
+registry for each one's newest unyanked version, and reinstalls the ones that differ.
+
+Configuration lives in `~/.jvavscratch/config.json`:
+
+```json
+{
+  "registry": "http://localhost:3000",
+  "api_token": "jvs_...",
+  "username": "you"
+}
+```
+
+::: tip Packages come from the registry, not from GitHub
+Installing a dependency uses `/api/v1/crates/.../download` on the configured registry
+server. Nothing in the CLI fetches packages from the GitHub API. (The `github:Jvavscratch/…`
+entries you will see in the *compiler packages'* own `package.json` files are npm
+dependencies between jvavscratch's own repositories, resolved at install time — a different
+mechanism that has nothing to do with `jvavscratch add`.)
+:::
+
+## Design draft: the component registry (not implemented)
+
+::: warning Design draft — not implemented
+**Nothing in this section exists in code.** No jvavscratch repository contains a `Registry`
+class, a `getInstance()` singleton, or any of the methods described below — a grep across
+the whole project finds no implementation. It is preserved because the design is still a
+plausible direction for the project, and because removing it would lose the reasoning. Read
+it as a proposal, never as an API you can call.
+
+The implemented registry in this project is the [package registry
+backend](#the-package-registry-backend) above.
+:::
+
+The idea: a single, central place where a build records the components a project is made of —
+variables (global, local and cloud), functions, sprites, backdrops, broadcasts and lists —
+with one query interface in front of it, instead of every generator keeping its own
+bookkeeping in a scratchpad file.
+
+### Proposed module responsibilities
+
+1. Register and manage variables (global, local, cloud).
+2. Register and manage functions (user-defined and built-in).
+3. Register and manage sprites and backdrops.
+4. Register and manage broadcast messages.
+5. Register and manage lists.
+6. Provide a single query and access interface over all of the above.
+
+It would also be the natural home for two things the current build does by convention rather
+than by structure: the idempotence rules (registering the same name twice should be an
+update, not a duplicate) and the export order of variables, lists and broadcasts into
+`project.json`.
+
+### Proposed core API
 
 #### `Registry.getInstance()`
 
-获取Registry的单例实例。
+Returns the singleton registry instance.
 
-**返回值：**
-- Registry实例
-
-**示例：**
 ```javascript
 const { Registry } = require('jvavscratch/registry');
 const registry = Registry.getInstance();
@@ -36,21 +230,15 @@ const registry = Registry.getInstance();
 
 #### `registerVariable(name, options)`
 
-注册变量。
+Registers a variable.
 
-**参数：**
-- `name`: 变量名称
-- `options`: 变量选项
-  - `type`: 变量类型（"number", "string", "boolean", "array"）
-  - `isGlobal`: 是否为全局变量（默认：false）
-  - `isCloud`: 是否为云变量（默认：false）
-  - `initialValue`: 初始值
-  - `owner`: 变量所有者（精灵或背景的ID）
+- `name` — variable name.
+- `options.type` — `"number"`, `"string"`, `"boolean"` or `"array"`.
+- `options.isGlobal` — default `false`.
+- `options.isCloud` — default `false`.
+- `options.initialValue` — initial value.
+- `options.owner` — the sprite or stage that owns it.
 
-**返回值：**
-- 注册的变量对象
-
-**示例：**
 ```javascript
 registry.registerVariable('score', {
   type: 'number',
@@ -61,69 +249,31 @@ registry.registerVariable('score', {
 
 #### `registerFunction(name, options)`
 
-注册函数。
+Registers a function. Options: `params`, `returnType`, `implementation`, `isBuiltIn`
+(default `false`), `owner`.
 
-**参数：**
-- `name`: 函数名称
-- `options`: 函数选项
-  - `params`: 参数列表
-  - `returnType`: 返回类型
-  - `implementation`: 函数实现
-  - `isBuiltIn`: 是否为内置函数（默认：false）
-  - `owner`: 函数所有者
-
-**返回值：**
-- 注册的函数对象
-
-**示例：**
 ```javascript
 registry.registerFunction('movePlayer', {
   params: ['direction', 'distance'],
   implementation: (direction, distance) => {
-    // 实现逻辑
+    // implementation
   }
 });
 ```
 
 #### `registerSprite(name, options)`
 
-注册精灵。
+Registers a sprite. Options: `id` (optional, generated when omitted), `x`, `y`, `size`,
+`direction`.
 
-**参数：**
-- `name`: 精灵名称
-- `options`: 精灵选项
-  - `id`: 精灵ID（可选，自动生成）
-  - `x`: x坐标
-  - `y`: y坐标
-  - `size`: 大小
-  - `direction`: 方向
-
-**返回值：**
-- 注册的精灵对象
-
-**示例：**
 ```javascript
-registry.registerSprite('Cat', {
-  x: 0,
-  y: 0,
-  size: 100
-});
+registry.registerSprite('Cat', { x: 0, y: 0, size: 100 });
 ```
 
 #### `registerBackground(name, options)`
 
-注册背景。
+Registers a backdrop. Options: `id` (optional), `costumes`.
 
-**参数：**
-- `name`: 背景名称
-- `options`: 背景选项
-  - `id`: 背景ID（可选，自动生成）
-  - `costumes`: 造型列表
-
-**返回值：**
-- 注册的背景对象
-
-**示例：**
 ```javascript
 registry.registerBackground('Stage', {
   costumes: [{ name: 'Backdrop1' }]
@@ -132,34 +282,16 @@ registry.registerBackground('Stage', {
 
 #### `registerBroadcast(name)`
 
-注册广播消息。
+Registers a broadcast message.
 
-**参数：**
-- `name`: 广播名称
-
-**返回值：**
-- 注册的广播对象
-
-**示例：**
 ```javascript
 registry.registerBroadcast('game over');
 ```
 
 #### `registerList(name, options)`
 
-注册列表（数组）。
+Registers a list. Options: `isGlobal` (default `false`), `initialItems`, `owner`.
 
-**参数：**
-- `name`: 列表名称
-- `options`: 列表选项
-  - `isGlobal`: 是否为全局列表（默认：false）
-  - `initialItems`: 初始项目数组
-  - `owner`: 列表所有者
-
-**返回值：**
-- 注册的列表对象
-
-**示例：**
 ```javascript
 registry.registerList('items', {
   isGlobal: true,
@@ -167,321 +299,169 @@ registry.registerList('items', {
 });
 ```
 
-### 查询API
+### Proposed query API
 
-#### `getVariable(name, owner)`
+| Call | Returns |
+|---|---|
+| `getVariable(name, owner?)` | The variable, or `undefined`. |
+| `getFunction(name)` | The function, or `undefined`. |
+| `getSprite(idOrName)` | The sprite, or `undefined`. |
+| `getBackground(idOrName)` | The backdrop, or `undefined`. |
+| `getBroadcast(name)` | The broadcast, or `undefined`. |
+| `getList(name, owner?)` | The list, or `undefined`. |
 
-获取变量。
-
-**参数：**
-- `name`: 变量名称
-- `owner`: 所有者（可选）
-
-**返回值：**
-- 变量对象或undefined
-
-**示例：**
 ```javascript
 const scoreVar = registry.getVariable('score');
-```
-
-#### `getFunction(name)`
-
-获取函数。
-
-**参数：**
-- `name`: 函数名称
-
-**返回值：**
-- 函数对象或undefined
-
-**示例：**
-```javascript
-const moveFunction = registry.getFunction('movePlayer');
-```
-
-#### `getSprite(idOrName)`
-
-获取精灵。
-
-**参数：**
-- `idOrName`: 精灵ID或名称
-
-**返回值：**
-- 精灵对象或undefined
-
-**示例：**
-```javascript
 const catSprite = registry.getSprite('Cat');
-```
-
-#### `getBackground(idOrName)`
-
-获取背景。
-
-**参数：**
-- `idOrName`: 背景ID或名称
-
-**返回值：**
-- 背景对象或undefined
-
-**示例：**
-```javascript
-const stageBg = registry.getBackground('Stage');
-```
-
-#### `getBroadcast(name)`
-
-获取广播。
-
-**参数：**
-- `name`: 广播名称
-
-**返回值：**
-- 广播对象或undefined
-
-**示例：**
-```javascript
-const gameOverBroadcast = registry.getBroadcast('game over');
-```
-
-#### `getList(name, owner)`
-
-获取列表。
-
-**参数：**
-- `name`: 列表名称
-- `owner`: 所有者（可选）
-
-**返回值：**
-- 列表对象或undefined
-
-**示例：**
-```javascript
 const itemsList = registry.getList('items');
 ```
 
-### 管理API
+### Proposed management API
 
-#### `updateVariable(name, updates, owner)`
+| Call | Effect |
+|---|---|
+| `updateVariable(name, updates, owner?)` | Apply `updates` to a variable; returns the updated variable or `undefined`. |
+| `updateSprite(idOrName, updates)` | Apply `updates` to a sprite; returns the updated sprite or `undefined`. |
+| `removeVariable(name, owner?)` | Remove a variable; returns whether it was removed. |
+| `clear()` | Drop every registered component. |
 
-更新变量。
-
-**参数：**
-- `name`: 变量名称
-- `updates`: 更新内容
-- `owner`: 所有者（可选）
-
-**返回值：**
-- 更新后的变量对象或undefined
-
-**示例：**
 ```javascript
-registry.updateVariable('score', {
-  value: 100,
-  type: 'number'
-});
-```
-
-#### `updateSprite(idOrName, updates)`
-
-更新精灵。
-
-**参数：**
-- `idOrName`: 精灵ID或名称
-- `updates`: 更新内容
-
-**返回值：**
-- 更新后的精灵对象或undefined
-
-**示例：**
-```javascript
-registry.updateSprite('Cat', {
-  x: 100,
-  y: 50
-});
-```
-
-#### `removeVariable(name, owner)`
-
-移除变量。
-
-**参数：**
-- `name`: 变量名称
-- `owner`: 所有者（可选）
-
-**返回值：**
-- 布尔值，表示是否成功移除
-
-**示例：**
-```javascript
+registry.updateVariable('score', { value: 100, type: 'number' });
+registry.updateSprite('Cat', { x: 100, y: 50 });
 registry.removeVariable('tempVar');
-```
-
-#### `clear()`
-
-清除所有注册的组件。
-
-**返回值：**
-- 无
-
-**示例：**
-```javascript
 registry.clear();
 ```
 
-## 组件对象结构
-
-### 变量对象
+### Proposed component shapes
 
 ```javascript
 const variable = {
-  id: 'var_1234',           // 变量ID
-  name: 'score',            // 变量名称
-  type: 'number',           // 变量类型
-  isGlobal: true,           // 是否全局变量
-  isCloud: false,           // 是否云变量
-  value: 0,                 // 当前值
-  initialValue: 0,          // 初始值
-  owner: null               // 所有者（null表示全局）
+  id: 'var_1234',
+  name: 'score',
+  type: 'number',
+  isGlobal: true,
+  isCloud: false,
+  value: 0,
+  initialValue: 0,
+  owner: null            // null means global
 };
-```
 
-### 函数对象
-
-```javascript
 const functionObj = {
-  id: 'func_1234',          // 函数ID
-  name: 'movePlayer',       // 函数名称
-  params: ['direction', 'distance'],  // 参数列表
-  returnType: null,         // 返回类型
-  implementation: Function, // 函数实现
-  isBuiltIn: false,         // 是否内置函数
-  owner: null               // 所有者
+  id: 'func_1234',
+  name: 'movePlayer',
+  params: ['direction', 'distance'],
+  returnType: null,
+  implementation: Function,
+  isBuiltIn: false,
+  owner: null
 };
-```
 
-### 精灵对象
-
-```javascript
 const sprite = {
-  id: 'sprite_1234',        // 精灵ID
-  name: 'Cat',              // 精灵名称
-  x: 0,                     // x坐标
-  y: 0,                     // y坐标
-  size: 100,                // 大小
-  direction: 90,            // 方向
-  visible: true,            // 是否可见
-  rotationStyle: 'all around', // 旋转方式
-  variables: [],            // 精灵变量
-  lists: [],                // 精灵列表
-  scripts: []               // 精灵脚本
+  id: 'sprite_1234',
+  name: 'Cat',
+  x: 0, y: 0,
+  size: 100,
+  direction: 90,
+  visible: true,
+  rotationStyle: 'all around',
+  variables: [],
+  lists: [],
+  scripts: []
 };
-```
 
-### 背景对象
-
-```javascript
 const background = {
-  id: 'bg_1234',            // 背景ID
-  name: 'Stage',            // 背景名称
-  currentCostumeIndex: 0,   // 当前造型索引
-  costumes: [],             // 造型列表
-  scripts: []               // 背景脚本
+  id: 'bg_1234',
+  name: 'Stage',
+  currentCostumeIndex: 0,
+  costumes: [],
+  scripts: []
 };
-```
 
-### 广播对象
-
-```javascript
 const broadcast = {
-  id: 'broadcast_1234',     // 广播ID
-  name: 'game over'         // 广播名称
+  id: 'broadcast_1234',
+  name: 'game over'
 };
-```
 
-### 列表对象
-
-```javascript
 const list = {
-  id: 'list_1234',          // 列表ID
-  name: 'items',            // 列表名称
-  isGlobal: true,           // 是否全局列表
-  items: ['apple', 'banana'], // 列表项
-  owner: null               // 所有者
+  id: 'list_1234',
+  name: 'items',
+  isGlobal: true,
+  items: ['apple', 'banana'],
+  owner: null
 };
 ```
 
-## 事件系统
+### Proposed event system
 
-Registry模块内置了事件系统，可以监听和响应组件的注册、更新和移除事件：
-
-### 监听事件
+The draft includes listeners for registration, update and removal, so that a caller can react
+to components appearing:
 
 ```javascript
-// 监听变量注册事件
 registry.on('variable:registered', (variable) => {
   console.log('Variable registered:', variable.name);
 });
 
-// 监听函数更新事件
 registry.on('function:updated', (func, updates) => {
   console.log('Function updated:', func.name);
 });
 
-// 监听精灵移除事件
 registry.on('sprite:removed', (sprite) => {
   console.log('Sprite removed:', sprite.name);
 });
 ```
 
-### 可用事件
+| Event | Fired when | Arguments |
+|---|---|---|
+| `variable:registered` | A variable is registered | `variable` |
+| `variable:updated` | A variable is updated | `variable`, `updates` |
+| `variable:removed` | A variable is removed | `variable` |
+| `function:registered` | A function is registered | `function` |
+| `function:updated` | A function is updated | `function`, `updates` |
+| `function:removed` | A function is removed | `function` |
+| `sprite:registered` | A sprite is registered | `sprite` |
+| `sprite:updated` | A sprite is updated | `sprite`, `updates` |
+| `sprite:removed` | A sprite is removed | `sprite` |
+| `background:registered` | A backdrop is registered | `background` |
+| `background:updated` | A backdrop is updated | `background`, `updates` |
+| `background:removed` | A backdrop is removed | `background` |
+| `broadcast:registered` | A broadcast is registered | `broadcast` |
+| `broadcast:removed` | A broadcast is removed | `broadcast` |
+| `list:registered` | A list is registered | `list` |
+| `list:updated` | A list is updated | `list`, `updates` |
+| `list:removed` | A list is removed | `list` |
+| `registry:cleared` | The registry is cleared | none |
 
-| 事件名称 | 触发条件 | 回调参数 |
-|---------|---------|--------|
-| variable:registered | 注册变量时 | variable |
-| variable:updated | 更新变量时 | variable, updates |
-| variable:removed | 移除变量时 | variable |
-| function:registered | 注册函数时 | function |
-| function:updated | 更新函数时 | function, updates |
-| function:removed | 移除函数时 | function |
-| sprite:registered | 注册精灵时 | sprite |
-| sprite:updated | 更新精灵时 | sprite, updates |
-| sprite:removed | 移除精灵时 | sprite |
-| background:registered | 注册背景时 | background |
-| background:updated | 更新背景时 | background, updates |
-| background:removed | 移除背景时 | background |
-| broadcast:registered | 注册广播时 | broadcast |
-| broadcast:removed | 移除广播时 | broadcast |
-| list:registered | 注册列表时 | list |
-| list:updated | 更新列表时 | list, updates |
-| list:removed | 移除列表时 | list |
-| registry:cleared | 清除注册表时 | 无 |
+### Proposed serialisation
 
-## 序列化和反序列化
-
-Registry模块支持序列化和反序列化，可以将注册表状态保存到文件或从文件加载：
-
-### 序列化
+The draft also sketches persisting registry state to disk and reading it back:
 
 ```javascript
 const data = registry.serialize();
-// 保存到文件
 await writeFile('./registry.json', JSON.stringify(data));
+
+const loaded = JSON.parse(await readFile('./registry.json'));
+registry.deserialize(loaded);
 ```
 
-### 反序列化
+::: tip The build already solves this problem differently
+Today, cross-generator state is collected in JSON scratchpads inside the per-build temp
+directory (`fn.json`, `classData.json`, `variables.json`, `lists.json`,
+`broadcasts.json`), emptied at the start of each build and merged into the project at the
+end. It works, but it is a side channel rather than an interface — which is exactly the gap
+this design draft was written to close.
+:::
 
-```javascript
-// 从文件加载
-const data = JSON.parse(await readFile('./registry.json'));
-registry.deserialize(data);
-```
+### Proposed best practices
 
-## 最佳实践
+1. **Use the singleton.** Always go through `Registry.getInstance()`.
+2. **Name things clearly.** Variables, functions and sprites should have meaningful names.
+3. **Pick the right scope.** Global versus local should be a decision, not a default.
+4. **Prefer events to polling.** React to registration and update events.
+5. **Serialise for backups.** Persist registry state deliberately.
 
-1. **使用单例模式**：始终通过`Registry.getInstance()`获取Registry实例
-2. **命名规范**：为变量、函数、精灵等使用清晰、有意义的名称
-3. **适当作用域**：根据需要选择合适的变量作用域（全局或局部）
-4. **事件监听**：利用事件系统响应组件变化
-5. **序列化备份**：定期序列化注册表状态作为备份
+## See also
+
+- [Modules · Core](/modules/core) — the dispatch registry, and the scratchpad state model described above.
+- [Modules · Utils](/modules/utils) — what a compiler-extension package is and how it is loaded.
+- [Modules · CLI](/modules/cli) — the package commands in full.
+- [Modules · Runtime](/modules/runtime) — the other design draft in this section of the docs.

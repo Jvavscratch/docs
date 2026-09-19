@@ -1,77 +1,62 @@
----
-title: jvavscratch
-layout: home
+# jvavscratch documentation
 
-hero:
-  name: jvavscratch
-  text: JavaScript到Scratch的转换工具
-  tagline: 将JavaScript代码转换为Scratch项目，让编程学习更加高效
-  image:
-    src: /logo.svg
-    alt: jvavscratch Logo
-  actions:
-    - theme: brand
-      text: 快速开始
-      link: /guide/getting-started
-    - theme: alt
-      text: 语法参考
-      link: /grammar/
-    - theme: alt
-      text: API文档
-      link: /api/
+The source of the documentation site at **https://jvavscratch.github.io/docs/**.
 
-features:
-  - title: 简单易用
-    details: 使用熟悉的JavaScript语法编写Scratch项目，降低学习门槛
-    icon: 💻
-  - title: 功能丰富
-    details: 支持变量、函数、类、控制流等JavaScript核心特性
-    icon: 🚀
-  - title: 无缝转换
-    details: 自动将JavaScript代码转换为Scratch积木块，保留逻辑结构
-    icon: 🔄
-  - title: 灵活扩展
-    details: 模块化设计，支持自定义扩展和插件开发
-    icon: 🧩
-  - title: 反编译支持
-    details: 支持将Scratch项目反编译回JavaScript代码进行编辑
-    icon: 🔍
-  - title: 开源免费
-    details: 基于MPL-2.0开源协议，社区驱动开发
-    icon: 📚
----
+Built with [VitePress](https://vitepress.dev/). The site is bilingual: English is the default
+locale and lives at the repository root, Chinese lives under `zh/`. Both trees mirror each other
+file for file, so a page at `guide/installation.md` has its Chinese counterpart at
+`zh/guide/installation.md` and is served at `/zh/guide/installation`.
 
-# jvavscratch
+## Requirements
 
-jvavscratch 是一个强大的工具，允许开发者使用JavaScript语法编写代码，并将其转换为Scratch项目文件(.sb3)。通过jvavscratch，你可以利用JavaScript的强大功能来创建复杂的Scratch项目，同时保留Scratch的直观性和教育价值。
+- Node.js 18 or newer
+- npm
 
-## 为什么选择jvavscratch？
+## Local development
 
-- **提高开发效率**：使用JavaScript的高级特性快速开发复杂逻辑
-- **降低学习曲线**：对于熟悉JavaScript的开发者，可以立即开始创建Scratch项目
-- **保留Scratch特性**：生成的项目完全兼容Scratch平台，保留所有交互功能
-- **团队协作**：支持版本控制和团队协作开发Scratch项目
+```bash
+npm install
+npm run dev       # dev server with hot reload at http://localhost:5173/docs/
+```
 
-## 项目架构
+`npm run dev` serves the site under `/docs/` because `base` is set to `/docs/` in
+`.vitepress/config.mjs` to match the GitHub Pages project-page URL.
 
-jvavscratch 由以下几个核心模块组成：
+## Build
 
-- **CLI**：命令行工具，提供项目创建、编译等功能
-- **Core**：核心转换引擎，处理语法分析和代码转换
-- **Generator**：负责生成Scratch项目文件(.sb3)
-- **Decompiler**：将Scratch项目反编译为JavaScript代码
-- **Types**：提供类型定义，支持TypeScript
-- **Utils**：通用工具函数库
-- **Registry**：组件和服务注册管理
+```bash
+npm run build     # static output in dist/
+npm run preview   # serve the built output locally
+```
 
-## 快速链接
+Dead links are checked during the build. If a link genuinely points at a page that does not exist
+yet, add its resolved absolute path to `ignoreDeadLinks` in `.vitepress/config.mjs` — do not turn
+the check off wholesale. Remove the entry once the page is written; the list is currently empty.
 
-- [安装指南](/guide/installation)
-- [基本使用](/guide/basic-usage)
-- [语法参考](/grammar/)
-- [常见问题](/faq/)
-- [模块文档](/modules/)
+## Deployment
 
-## 许可证
+Deployment is automatic. Pushing to `main` runs
+[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml), which builds the site and publishes
+it to GitHub Pages. Nothing needs to be committed to a `gh-pages` branch by hand.
 
-本项目使用MPL-2.0许可证。详情请查看[许可证文档](/license)。
+For this to work, the repository's **Settings → Pages → Build and deployment → Source** must be set
+to **GitHub Actions**. The workflow can also be run manually from the Actions tab
+(`workflow_dispatch`).
+
+## Writing conventions
+
+- **Every page exists in both languages.** When you add or rename a page, update the other locale
+  and the corresponding sidebar entry in `.vitepress/config.mjs` in the same change.
+- **Internal links are absolute and site-rooted.** In an English page write `/guide/installation`;
+  in a Chinese page write `/zh/guide/installation`. Relative links break under nested routes.
+- **Keep frontmatter.** Every page carries at least a `title:`; the home pages under `index.md` and
+  `zh/index.md` use the `layout: home` hero/features blocks.
+- **Document what the code does.** If a feature is planned but not implemented, say so explicitly
+  rather than describing it as if it exists — `modules/registry.md` and `modules/runtime.md` are
+  marked as design drafts for exactly this reason.
+- The language reference at `reference/language-reference.md` is the authoritative description of
+  the JavaScript dialect users write. Keep the two locales structurally in step when editing it.
+
+## License
+
+Mozilla Public License 2.0. See [LICENSE](license.md).

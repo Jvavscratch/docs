@@ -1,302 +1,119 @@
-# API参考
+---
+title: API Overview
+---
 
-本章节提供jvavscratch框架的API参考文档，包含所有主要模块的公共接口、参数说明和使用示例。
+# API Overview
 
-## 模块导航
+jvavscratch is an **ahead-of-time (AOT) compiler**, not an interpreter. It reads the JavaScript
+you write in `src/`, maps each construct onto a Scratch 3.0 opcode, and emits a `project.json`
+that is zipped into `target/<name>.sb3`. There is no JavaScript engine in the output and no
+runtime library to `require()`: by the time your program runs in Scratch, your source has already
+been translated into blocks.
 
-- [CLI模块](/modules/cli) - 命令行工具
-- [Core模块](/modules/core) - 核心转换引擎
-- [Generator模块](/modules/generator) - Scratch项目生成器
-- [Decompiler模块](/modules/decompiler) - Scratch项目反编译器
-- [Types模块](/modules/types) - 类型系统
-- [Utils模块](/modules/utils) - 工具函数
-- [Registry模块](/modules/registry) - 组件注册和管理
-- [Runtime模块](/modules/runtime) - 运行时执行环境
+That shapes what "the API" means here. There are three distinct surfaces:
 
-## 通用API
+| Surface | What it is | Where it is documented |
+|---|---|---|
+| **Standard library** | The `library.function(...)` calls you write inside a project. This is the bulk of the API. | [Built-in Functions](/api/builtins), [Motion](/api/motion), [Looks](/api/looks), [Sound](/api/sound) |
+| **CLI** | `jvavscratch build`, `run`, `decompile`, `new`, `lib`, `add`, … | [CLI module](/modules/cli) |
+| **Package authoring API** | `createFunction`, `createValueFunction`, `createLibrary`, `createGlobal`, `createBlock`, `createImplementation` — used to extend the *compiler* itself | [Language reference](/reference/language-reference) ("Package specification") |
 
-### 版本信息
+This section covers the standard library. Every entry lists the exact call signature, what each
+argument does, which Scratch block it becomes, and a minimal example.
 
-```javascript
-const { version } = require('jvavscratch');
-console.log(`jvavscratch version: ${version}`);
+## Two call forms
+
+A call such as `motion.move(10)` is dispatched by name, and the compiler keeps **two separate
+tables**:
+
+- the **block (statement) form**, used when the call is a statement of its own — `looks.say("hi");`
+- the **value form**, used when the call appears inside an expression — `let x = motion.x();`
+
+The same library name can appear in both tables. `motion.move(10)` is a statement, so it is looked
+up in the block table and becomes a stack block; `motion.x()` sits inside an expression, so it is
+looked up in the value table and becomes a reporter. A name that only exists in one table is not
+callable in the other position, and the compiler says so:
+
+```js
+operation.join("Hello, ", "World!"); // ✗ "Unknown library, got: 'operation'"
+let s = operation.join("Hello, ", "World!"); // ✓ operation is a value library
 ```
 
-### 配置管理
+The built-in libraries are:
 
-```javascript
-const jvavscratch = require('jvavscratch');
+**Block form (10)** — `motion`, `looks`, `sound`, `control`, `sensing`, `pen`, `list`,
+`variable`, `broadcast`, `method`
 
-// 获取配置
-const config = jvavscratch.getConfig();
+**Value form (9)** — `motion`, `looks`, `sound`, `sensing`, `list`, `method`, `math`,
+`operation`, `util`
 
-// 设置配置
-jvavscratch.setConfig({
-  debug: true,
-  outputPath: './output'
-});
+`control`, `pen`, `variable`, and `broadcast` are block-only (their blocks have no return value);
+`math`, `operation` and `util` are value-only. Everything else has both forms, and the two forms
+of a library are documented together — `motion.x()` in [Motion](/api/motion),
+`list.getItem()` in [Built-in Functions](/api/builtins).
+
+A library that is not built in is looked up in the packages installed in `lib/`. See
+[Dependencies and packages](/reference/language-reference).
+
+## Argument checking
+
+Every library function declares a minimum argument count, and some declare required node types:
+
+- **Too few arguments** is a hard error. The compiler prints a `error: Not enough arguments`
+  diagnostic with a code frame and exits with status 1 — the build does not continue.
+- **A missing or wrong-typed required argument** (used by `list.*`, `variable.*`, `method.*` and
+  `math.operation`) is likewise a hard error, e.g.
+  `Expected 'StringLiteral' for argument '1', got: 'NumericLiteral'`.
+- **Extra arguments** are evaluated and then ignored, except where noted. This is not something to
+  rely on.
+- **An unknown library or function name** is a *warning*, not an error: the compiler prints
+  `[Warn]: Unknown function of library motion, got: 'moveUp'` and drops the statement (or the
+  value expression). A project can therefore build "successfully" while missing blocks you asked
+  for — read the build output.
+
+## Where list names, variables and broadcasts come from
+
+Several functions take a **name as a string literal** rather than a value: `list.push("items", x)`,
+`variable.show("score")`, `broadcast.fire("go")`. Those names are collected into
+`assets/{variables,lists,broadcasts}.json` while the project compiles and become the project's
+declared variables, lists and messages. A name you never mention anywhere else is still declared,
+so `list.newList("items", [], false)` is self-sufficient; but a variable you only ever *read* must
+still be introduced somewhere, or Scratch will not have it.
+
+The single exception in style is `list.newList(name, contents, isPrivate)`, which needs a literal
+name, an array literal, and a boolean literal — nothing else is accepted.
+
+## Quick start
+
+```js
+// src/Sprite1.js
+looks.say("Hello, World!");
 ```
 
-### 错误处理
+That is the whole scaffold; `jvavscratch build` turns it into one green-flag script holding a
+single `say` block. A slightly bigger program, using both call forms:
 
-jvavscratch提供了统一的错误类型：
+```js
+let hits = 0;
 
-```javascript
-const { JvavError } = require('jvavscratch/errors');
+//#whenkeypressed("space")
+motion.move(10);
+hits = hits + 1;
+looks.say(operation.join("hits: ", hits));
 
-// 常见错误类型
-// - SyntaxError: 语法错误
-// - TypeError: 类型错误
-// - RuntimeError: 运行时错误
-// - ValidationError: 验证错误
-// - NotFoundError: 资源未找到错误
-```
-
-## 快速开始示例
-
-### 1. 基础转换
-
-```javascript
-const { transform } = require('jvavscratch/core');
-
-async function convertCode() {
-  try {
-    // jvavscratch代码
-    const code = `
-      whenGreenFlag(() => {
-        move(10);
-        turnRight(15);
-        say("Hello World!");
-      });
-    `;
-    
-    // 转换为Scratch项目数据
-    const project = await transform(code);
-    
-    // 保存为.sb3文件
-    await saveProject(project, './output/project.sb3');
-    
-    console.log('转换成功！');
-  } catch (error) {
-    console.error('转换失败:', error);
-  }
-}
-
-convertCode();
-```
-
-### 2. 项目反编译
-
-```javascript
-const { decompileProject } = require('jvavscratch/decompiler');
-
-async function decompileScratchProject() {
-  try {
-    // 反编译Scratch项目
-    const result = await decompileProject('./input/project.sb3');
-    
-    // 输出jvavscratch代码
-    console.log(result.code);
-    
-    // 保存到文件
-    require('fs').writeFileSync('./output/project.js', result.code);
-    
-    console.log('反编译成功！');
-  } catch (error) {
-    console.error('反编译失败:', error);
-  }
-}
-
-// 使用示例
-const { generateProject } = require('jvavscratch/generator');
-
-async function createScratchProject() {
-  // 创建项目配置
-  const projectConfig = {
-    name: 'My Project',
-    sprites: [
-      {
-        name: 'Cat',
-        x: 0,
-        y: 0,
-        costumes: [{ name: 'costume1', assetId: 'cat1' }],
-        scripts: [
-          {
-            blocks: [
-              { opcode: 'event_whenflagclicked' },
-              { opcode: 'motion_movesteps', inputs: { STEPS: [1, 10] } },
-              { opcode: 'looks_say', inputs: { MESSAGE: [1, 'Hello!'] } }
-            ]
-          }
-        ]
-      }
-    ]
-  };
-  
-  // 生成项目
-  const project = await generateProject(projectConfig);
-  
-  // 保存项目
-  await saveProject(project, './my_project.sb3');
-}
-
-// 加载并执行代码
-const { Runtime } = require('jvavscratch/runtime');
-
-async function runCode() {
-  const runtime = Runtime.create({ debug: true });
-  await runtime.start();
-  
-  await runtime.execute(`
-    whenGreenFlag(() => {
-      forever(() => {
-        move(5);
-        if(onEdgeBounce(), () => {
-          turnRight(90);
-        });
-      });
-    });
-  `);
+if (sensing.touching("edge")) {
+    motion.bounceOnEdge();
 }
 ```
 
-## 类型定义
+[Motion](/api/motion), [Looks](/api/looks) and [Sound](/api/sound) cover their libraries in
+full; [Built-in Functions](/api/builtins) covers the rest, and [API Examples](/api/examples) has
+complete, buildable programs. The [example index](/examples/) lists what is available to run today.
 
-jvavscratch提供了完整的TypeScript类型定义：
+## Related reading
 
-```typescript
-import { Project, Sprite, Block, Variable, List } from 'jvavscratch/types';
-
-interface MyProject extends Project {
-  // 自定义扩展
-}
-
-function processSprite(sprite: Sprite): void {
-  // 处理精灵
-}
-```
-
-## 插件API
-
-jvavscratch支持插件系统，可以扩展功能：
-
-```javascript
-// 定义插件
-const myPlugin = {
-  name: 'my-plugin',
-  version: '1.0.0',
-  
-  // 插件初始化
-  init(jvavscratch) {
-    // 扩展功能
-    jvavscratch.myPluginFunction = () => {
-      // 功能实现
-    };
-    
-    // 注册自定义转换规则
-    jvavscratch.registerTransformer('my-transformer', (ast) => {
-      // AST转换逻辑
-      return ast;
-    });
-  }
-};
-
-// 加载插件
-jvavscratch.use(myPlugin);
-```
-
-## 事件API
-
-jvavscratch使用事件系统进行模块间通信：
-
-```javascript
-// 监听事件
-jvavscratch.on('project:created', (project) => {
-  console.log('项目已创建:', project.name);
-});
-
-// 触发事件
-jvavscratch.emit('custom:event', data);
-
-// 移除监听器
-jvavscratch.off('project:created', listener);
-```
-
-## 全局设置
-
-### 语言设置
-
-```javascript
-// 设置语言
-jvavscratch.setLanguage('zh-CN');
-
-// 获取当前语言
-const currentLang = jvavscratch.getLanguage();
-```
-
-### 日志设置
-
-```javascript
-// 设置日志级别
-jvavscratch.setLogLevel('debug'); // 'error', 'warn', 'info', 'debug', 'trace'
-
-// 自定义日志处理器
-jvavscratch.setLogger({
-  info: (msg) => console.info(msg),
-  error: (err) => console.error(err)
-});
-```
-
-### 性能设置
-
-```javascript
-// 启用性能监控
-jvavscratch.enablePerformanceMonitoring();
-
-// 获取性能统计
-const stats = jvavscratch.getPerformanceStats();
-```
-
-## 兼容性
-
-### Scratch版本支持
-
-| Scratch版本 | 支持状态 | 备注 |
-|------------|---------|------|
-| Scratch 2.0 | 部分支持 | 需转换为.sb格式 |
-| Scratch 3.0 | 完全支持 | 原生.sb3格式 |
-| Scratch 4.0 (预览版) | 实验性支持 | 可能有兼容性问题 |
-
-### 浏览器兼容性
-
-jvavscratch在Node.js环境完全支持，在浏览器环境中支持以下特性：
-
-- 核心转换功能
-- 运行时模拟
-- 基本UI组件
-
-### Node.js版本要求
-
-- 最低版本: Node.js 14.x
-- 推荐版本: Node.js 16.x 或更高
-
-## 废弃API
-
-以下API已被标记为废弃，将在未来版本中移除：
-
-```javascript
-// 废弃的API示例
-// 请使用新的API
-// jvavscratch.oldMethod() // 废弃
-// jvavscratch.newMethod() // 推荐
-```
-
-## 贡献指南
-
-如果您发现API文档中的错误或需要补充信息，请参考[贡献指南](/contributing)提交修复或建议。
-
-## 下一步
-
-- [深入了解各模块的详细API](/modules/)
-- [查看使用指南](/guide/getting-started)
-- [探索示例项目](/examples/index)
+- [Language reference](/reference/language-reference) — the authoritative description of the
+  dialect, including the expression rewrites (list indexing, `Math.*`, `**`, ternaries) that are
+  described as library calls on these pages.
+- [API Examples](/api/examples) — real programs, from a one-liner to a class-based one.
+- [Example index](/examples/) — the runnable examples that ship in the repository.

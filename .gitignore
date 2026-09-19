@@ -1,9 +1,9 @@
-# 依赖与构建产物
+# Dependencies and build output
 node_modules/
 dist/
 .vitepress/cache/
 .vitepress/dist/
 
-# 日志与系统文件
+# Logs and OS files
 *.log
 .DS_Store

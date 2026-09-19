@@ -1,222 +1,261 @@
-# Decompiler 模块
+---
+title: Decompiler
+description: Turning an .sb3 back into a jvavscratch project — what it does, which opcodes it covers, and where it breaks.
+---
 
-Decompiler模块是jvavscratch的反编译工具，能够将Scratch项目文件(.sb3)反编译为jvavscratch JavaScript代码。这个模块使得用户可以将现有的Scratch项目转换为JavaScript代码进行编辑，然后再重新编译回Scratch项目。
+# Decompiler module
 
-## 模块功能
+`decompiler` is the only package that runs the compiler backwards: it reads a
+Scratch `.sb3`, walks the block dictionary, and writes a jvavscratch project.
+It is also the smallest package — one implementation file, two exported
+functions.
 
-Decompiler模块主要提供以下功能：
+Its limits are worth reading before you use it. The decompiler is a
+**best-effort reconstruction**, not an inverse of the compiler, and a project it
+produces cannot currently be rebuilt without manual repair. The
+[Limitations](#limitations) section below lists the concrete, reproducible
+reasons.
 
-1. 解析Scratch项目文件(.sb3)
-2. 提取精灵、背景、变量、列表和广播消息
-3. 将Scratch块转换为JavaScript代码
-4. 生成符合jvavscratch语法的代码文件
-5. 支持自定义反编译选项
+## What is in the package
 
-## API概述
+| File | Responsibility |
+| --- | --- |
+| `decompiler/src/decompiler/decompile-util.ts` | Everything: unzipping, block walking, code emission, asset copying. |
+| `decompiler/src/decompiler/index.ts` | `export * from './decompile-util'`. |
+| `decompiler/src/index.ts` | Re-exports the above; the package's main entry. |
 
-### 核心API
+Three functions are exported:
 
-#### `decompileProject(filePath, options)`
-
-反编译Scratch项目文件。
-
-**参数：**
-- `filePath`: Scratch项目文件(.sb3)的路径
-- `options`: 反编译选项
-  - `output`: 输出目录路径（默认：当前目录下的`decompiled`目录）
-  - `format`: 输出格式（"js" 或 "ts"，默认："js"）
-  - `includeComments`: 是否包含注释（默认：true）
-  - `optimizeNames`: 是否优化变量和函数名称（默认：true）
-  - `preserveStructure`: 是否保留原始结构（默认：true）
-
-**返回值：**
-- Promise，解析为反编译后的项目信息对象
-
-**示例：**
-```javascript
-const { decompileProject } = require('jvavscratch/decompiler');
-const result = await decompileProject('./project.sb3', {
-  output: './my-project',
-  format: 'js',
-  includeComments: true
-});
+```ts
+unzipSB3(sb3Path: string, tempDir: string): Promise<void>
+createjvavscratchProject(tempDir: string, projectDir: string, projectName: string): Promise<void>
+copyAssets(tempDir: string, projectDir: string): Promise<void>
 ```
 
-#### `parseSb3File(filePath)`
+`createjvavscratchProject` calls `copyAssets` itself, so a caller normally uses
+only the first two.
 
-解析Scratch项目文件，但不生成JavaScript代码。
+The code generator — `generateJavaScriptFromBlocks` — is **not** exported. There
+is no supported way to decompile a single sprite or a block dictionary from
+outside the package.
 
-**参数：**
-- `filePath`: Scratch项目文件(.sb3)的路径
+## Entry points
 
-**返回值：**
-- Promise，解析为项目数据对象
+`unzipSB3` extracts with `adm-zip` (`extractAllTo(tempDir, true)`) after
+clearing `tempDir` if it exists, and then asserts that `project.json` is
+present — an `.sb3` without one throws
+`Invalid SB3 file format: missing project.json file`. Failures are rewrapped as
+`Failed to extract SB3 file: …`.
 
-**示例：**
-```javascript
-const { parseSb3File } = require('jvavscratch/decompiler');
-const projectData = await parseSb3File('./project.sb3');
+`createjvavscratchProject` clears or creates the output directory, reads
+`project.json`, and writes:
+
+```text
+<projectDir>/
+  jvavscratch.toml        # name, description, author, version
+  project.d.json          # { "sprites": ["Stage", "<Sprite>", ...] }
+  src/
+    Stage/Stage.js        # the stage's blocks
+    <Sprite>.js           # one file per sprite
+  lib/                    # empty
+  assets/
+    costumes/             # see "Assets" below
+    sounds/
 ```
 
-#### `blocksToCode(blocks, options)`
+and finally `createProjectDirectories()` ensures `assets`, `assets/costumes`,
+`assets/sounds`, `lib` and `src` all exist.
 
-将Scratch块转换为JavaScript代码。
+The `.toml` it writes deliberately matches the shape `buildProject` expects:
 
-**参数：**
-- `blocks`: Scratch块对象
-- `options`: 转换选项
-  - `includeComments`: 是否包含注释（默认：true）
-  - `optimizeNames`: 是否优化变量名称（默认：true）
-
-**返回值：**
-- JavaScript代码字符串
-
-**示例：**
-```javascript
-const { blocksToCode } = require('jvavscratch/decompiler');
-const code = blocksToCode(spriteBlocks, {
-  includeComments: true
-});
+```toml
+name = "opttest"
+description = "Decompiled Jvavscratch project from Scratch"
+author = ""
+version = "1.0.0"
 ```
 
-### 工具API
+Note what is absent: no `custom_block_return`, no `list_index_base`, no
+`[dependencies]`. A decompiled project therefore always builds with the default
+one-based list indexing and procedure returns disabled.
 
-#### `extractAssets(projectData, outputDir)`
+## How the code is generated
 
-提取Scratch项目中的资源（图像、音频等）。
+For each target, `generateJavaScriptFromBlocks(blocks, variables, lists)` emits a
+file in three passes.
 
-**参数：**
-- `projectData`: 项目数据对象，从`parseSb3File`获取
-- `outputDir`: 资源输出目录
+**1. Declarations.** Variables and lists are collected from the target's
+`variables` / `lists` maps *and* from the blocks themselves (`data_*` blocks
+referencing a `VARIABLE` or `LIST` field). Cloud variables — those whose name
+starts with `☁` — are skipped. Each variable becomes `let <name> = <initial>;`.
+Lists become one of:
 
-**返回值：**
-- Promise，解析为提取的资源列表
-
-**示例：**
-```javascript
-const { parseSb3File, extractAssets } = require('jvavscratch/decompiler');
-const projectData = await parseSb3File('./project.sb3');
-const assets = await extractAssets(projectData, './assets');
+```js
+list.newList("numbers", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], false);  // a list literally named "numbers"
+list.newList("<name>", [<initial items>], false);
+list.createList("<name>");
 ```
 
-#### `generateProjectStructure(projectData, options)`
+The `numbers` case is hard-coded, and it *ignores* the list's real contents.
 
-生成项目结构对象。
+A second hard-coded touch is worth flagging, because it silently changes
+behaviour: after collecting initial values, the generator overwrites the
+recorded value for eight well-known names.
 
-**参数：**
-- `projectData`: 项目数据对象
-- `options`: 生成选项
-  - `format`: 输出格式（"js" 或 "ts"）
-
-**返回值：**
-- 项目结构对象，包含文件和目录信息
-
-**示例：**
-```javascript
-const { parseSb3File, generateProjectStructure } = require('jvavscratch/decompiler');
-const projectData = await parseSb3File('./project.sb3');
-const structure = generateProjectStructure(projectData, { format: 'js' });
+```ts
+variableInitialValues['len'] = 0;
+variableInitialValues['i'] = 1;
+variableInitialValues['j'] = 1;
+variableInitialValues['k'] = 1;
+variableInitialValues['result'] = "";
+variableInitialValues['separator'] = "";
+variableInitialValues['current'] = "";
+variableInitialValues['next'] = "";
 ```
 
-## 反编译流程
+So a project whose `i` starts at `7` decompiles to `let i = 1;`.
 
-反编译过程包含以下主要步骤：
+**2. Find the scripts.** `findTopLevelBlocks` returns every block that nothing
+references through an `inputs` entry or a `next` pointer, and then adds every
+block whose opcode starts with `event_`. Block order is object-key order from the
+JSON, so it follows how the project was serialised rather than how the scripts
+look on the Scratch canvas.
 
-1. **解压项目文件**：.sb3文件实际上是一个ZIP压缩文件，需要先解压
-2. **解析项目配置**：读取`project.json`文件，获取项目结构
-3. **提取精灵和背景**：获取所有精灵和背景信息
-4. **分析变量和列表**：提取所有变量和列表定义
-5. **转换代码块**：将每个精灵和背景的代码块转换为JavaScript代码
-6. **生成文件结构**：创建适当的文件和目录结构
-7. **写入输出文件**：将生成的代码写入输出目录
+**3. Emit.** Each script is walked by `decompileBlock(blocks, blockId, block,
+indentation)`, which returns a string. A statement case appends its own line and
+falls through to a shared tail that recurses into `block.next`; an expression
+case returns a snippet with no semicolon, which the caller inlines.
+`processInput` turns an input tuple into a snippet: a string index is looked up
+in the block dictionary (and, for operators, list accessors and sensing, inlined
+without a semicolon); an array index yields a literal, with a number-looking
+string emitted as a number and a known variable name emitted bare.
 
-## 反编译示例
+The indentation parameter is threaded through but nested statements inside a
+`control_if` are produced by the same recursive call, so the output is
+approximately rather than reliably indented.
 
-### 命令行反编译
+### Opcode coverage
 
-最简单的方法是使用CLI工具进行反编译：
+The `switch` in `decompileBlock` handles these 57 opcodes:
+
+| Category | Opcodes |
+| --- | --- |
+| Events | `event_whenflagclicked` |
+| Data | `data_variable`, `data_listcontents`, `data_setvariableto`, `data_changevariableby`, `data_addtolist`, `data_deletealloflist`, `data_deleteoflist`, `data_replaceitemoflist`, `data_itemoflist`, `data_lengthoflist` |
+| Control | `control_repeat`, `control_repeat_until`, `control_if`, `control_if_else`, `control_wait`, `control_stop` |
+| Looks | `looks_say`, `looks_sayforsecs`, `looks_think`, `looks_thinkforsecs`, `looks_show`, `looks_hide`, `looks_switchcostumeto`, `looks_nextcostume`, `looks_setsizeto`, `looks_changesizoby` |
+| Operators | `operator_equals`, `operator_greaterthan`, `operator_gt`, `operator_lessthan`, `operator_lt`, `operator_not`, `operator_add`, `operator_subtract`, `operator_multiply`, `operator_divide`, `operator_join` |
+| Procedures | `procedures_definition`, `procedures_call` |
+| Motion | `motion_movesteps`, `motion_turnright`, `motion_turnleft`, `motion_gotoxy`, `motion_changexby`, `motion_changeyby`, `motion_pointindirection`, `motion_glidesecstoxy` |
+| Sound | `sound_play`, `sound_playuntildone`, `sound_stopallsounds`, `sound_changevolumeby`, `sound_setvolumeto` |
+| Sensing | `sensing_touchingobject`, `sensing_mousedown`, `sensing_mousex`, `sensing_mousey`, `sensing_keyoptions` |
+
+Anything else becomes a comment, and nothing else — there is no error and no
+warning:
+
+```js
+// Unsupported block: control_forever
+// Looks block: looks_seteffectto
+```
+
+Because the fallback categorises by opcode *prefix*, most unsupported blocks are
+at least tagged with the right family. The gaps are substantial: `control_forever`,
+`control_wait_until`, `event_whenkeypressed`, `event_broadcast`,
+`operator_and`, `operator_or`, `operator_mod`, `sensing_askandwait`,
+`sensing_keypressed`, `data_showvariable`, `looks_seteffectto`, the clone blocks
+and `procedures_return` are all unhandled.
+
+## Using it from the CLI
 
 ```bash
-jvavscratch decompile ./project.sb3 --output ./my-project
+jvavscratch decompile <sb3Path> [outputDir] [projectName]
 ```
 
-### 编程方式反编译
+`decompileFromSB3` in `cli/src/cli/projectManager.ts` validates that the `.sb3`
+exists, derives the project name from `projectName` or the `.sb3` basename, and
+computes `projectDir = join(outputDir, name)`. Extraction goes to
+`<cwd>/tmp/sb3_extract_<timestamp>`, which is removed afterwards — along with the
+wrapper `<cwd>/tmp` directory's contents, though the empty `tmp` directory
+itself is left behind.
 
-也可以通过API以编程方式进行反编译：
+Note that this is the one place the CLI still uses `process.cwd()` for a working
+path rather than the scratch directory, and that `outputDir` defaults to `./`.
+Unlike the build commands, a decompile failure is reported through `warn()` and
+then `error()`, so the exit path depends on whether the throw happened inside or
+outside the `try`.
 
-```javascript
-const { decompileProject } = require('jvavscratch/decompiler');
+## Limitations
 
-async function decompileMyProject() {
-  try {
-    const result = await decompileProject('./project.sb3', {
-      output: './my-project',
-      format: 'js',
-      includeComments: true,
-      optimizeNames: true
-    });
-    
-    console.log('反编译成功！');
-    console.log(`生成了 ${result.files.length} 个文件`);
-    console.log(`输出目录: ${result.outputDir}`);
-  } catch (error) {
-    console.error('反编译失败:', error);
-  }
-}
+Everything here was reproduced against a project built by this compiler and then
+decompiled back.
 
-decompileMyProject();
-```
+### A decompiled project does not rebuild
 
-## 生成的文件结构
-
-反编译后，会生成以下文件结构：
+`jvavscratch build` on a freshly decompiled project fails immediately:
 
 ```
-my-project/
-├── jvavscratch.config.js  # 项目配置文件
-├── src/
-│   ├── main.js           # 主入口文件
-│   ├── sprites/          # 精灵代码目录
-│   │   ├── Sprite1.js    # 第一个精灵的代码
-│   │   ├── Sprite2.js    # 第二个精灵的代码
-│   │   └── ...
-│   └── stage.js          # 舞台（背景）代码
-└── assets/               # 资源目录（如果提取了资源）
-    ├── costumes/         # 造型文件
-    └── sounds/           # 音效文件
+error: could not find sprite-data for included sprite 'Stage'
 ```
 
-## 反编译限制
+Two independent causes, both in the asset layer:
 
-尽管Decompiler模块功能强大，但由于Scratch和JavaScript之间的差异，仍存在一些限制：
+- **No per-sprite asset directories.** The decompiler creates `assets/`,
+  `assets/costumes/` and `assets/sounds/`, but the build looks for
+  `assets/<Sprite>/sprite.json`, `assets/<Sprite>/costumes/costumes.json` and a
+  complete `assets/stage/`. None of those are produced.
+- **`copyAssets` looks in the wrong place.** It copies `<tempDir>/costumes` and
+  `<tempDir>/sounds`, but an `.sb3` stores its assets **flat at the archive
+  root** — `project.json` next to `<md5>.svg` files, with no `costumes` or
+  `sounds` subdirectory. A standard `.sb3` therefore copies nothing at all and
+  both destination directories end up empty.
 
-1. **代码结构转换**：Scratch的块编程结构与JavaScript的文本编程结构存在根本差异，某些复杂的块结构可能无法完美转换
-2. **变量类型**：Scratch变量在反编译时会根据使用情况推断类型，但可能不够准确
-3. **自定义块**：自定义块的反编译可能不够理想，特别是复杂的自定义块
-4. **特殊效果**：某些Scratch特有的效果可能需要特殊处理
-5. **注释**：Scratch中的注释会尽可能保留，但可能不够完善
+The `lib/` directory is created (which matters, since a missing `lib/` is a hard
+error), and `src/` and `project.d.json` are well-formed, so the manual repair is
+confined to the asset tree: add `assets/<Sprite>/` with a `sprite.json`,
+`costumes/costumes.json` and `sound/sound.json` for every sprite, plus a
+`assets/stage/` with `stage.json` and `backdrops/backdrops.json`.
 
-## 最佳实践
+### Statement chains are emitted twice
 
-1. **验证反编译结果**：反编译后，应检查生成的代码是否符合预期
-2. **适度编辑**：对反编译的代码进行编辑时，应保持在jvavscratch支持的语法范围内
-3. **重新编译测试**：编辑后，应重新编译为Scratch项目并测试功能
-4. **保留原始项目**：在反编译和编辑过程中，始终保留原始的Scratch项目作为备份
+`decompileBlock` handles a hat by recursing into `block.next` inside its own
+`case`, and then the shared tail at the end of the function recurses into
+`block.next` again. Every statement after a hat is therefore emitted twice. A
+four-statement script decompiles as `s, a, b, s, s, a, b, s`.
 
-## 疑难解答
+### Two opcode readers use the wrong key names
 
-### 反编译失败
+- **`looks_say` reads `block.fields.MESSAGE[0]`**, but Scratch stores the message
+  as an **input**, not a field. The lookup yields `undefined`, so every
+  `say` decompiles to `looks.say("")` — the text is lost, whether it was a
+  literal or a variable.
+- **`operator_add`/`subtract`/`multiply`/`divide` read `OPERAND1`/`OPERAND2`**,
+  but those blocks use `NUM1`/`NUM2` in Scratch 3. (`operator_equals`,
+  `greaterthan` and `lessthan` do use `OPERAND1`/`OPERAND2`, which is why the
+  comparison cases work.) Both operands come back as `null`.
 
-如果反编译失败，可能的原因包括：
+Together these two turn `looks.say(1 + 2)` into `looks.say("")`, and
+`let a = 1 + 2 + 3;` into `a = null + null;`.
 
-1. Scratch项目文件损坏
-2. 项目使用了不支持的Scratch扩展或功能
-3. 文件路径问题
+### Variables lose their kind
 
-### 生成的代码有问题
+A `let x = 1;` and a later `x = 2;` both decompile to plain assignment, with a
+single `let x = "";` at the top of the file. Declarations are only emitted at
+file scope, so a variable used inside a procedure body is declared in the wrong
+place, and a parameter's initial value is never set.
 
-如果生成的代码有问题，可以尝试：
+## Working on it
 
-1. 调整反编译选项，特别是`optimizeNames`和`preserveStructure`选项
-2. 手动修复生成的代码中的问题
-3. 对于复杂项目，考虑部分手动转换
+The package has no tests, and its dependencies (`@jvavscratch/types`,
+`@jvavscratch/utils`) are used only for `deleteAllContents` and `copyAllSync` —
+the decompiler does not read the `Block` type or the opcode enum, it works on
+`any`. That is convenient but is also why the key-name mistakes above survived:
+nothing type-checks `block.fields.MESSAGE`.
+
+The quickest way to verify a change is the one the rest of the project uses —
+build a project, decompile it, and read the generated `src/`:
+
+```bash
+node cli/dist/index.js build ./examples/pi-spigot
+node cli/dist/index.js decompile ./examples/pi-spigot/target/pi-spigot.sb3 /tmp/roundtrip
+cat /tmp/roundtrip/pi-spigot/src/Sprite1.js
+```

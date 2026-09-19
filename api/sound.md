@@ -1,189 +1,128 @@
-# 声音API
+---
+title: Sound
+---
 
-jvavscratch提供了声音API，使开发者能够控制角色的声音播放、音量和音效等。这些API对应Scratch中的声音类积木。
+# Sound
 
-## 声音播放函数
+The `sound` library plays the sounds stored in a sprite's `assets/<Sprite>/sound/` folder, and
+controls volume and the two sound effects. It has eight statement functions and one value
+function.
 
-### playSound
+Sound names are ordinary values, so a name or a number both work:
+`sound.playSound("meow")` and `sound.playSound(1)` refer to the same sound. The sound has to exist
+in the project — a name that matches nothing plays nothing.
 
-```javascript
-// 播放指定声音
-sprite.playSound("meow");
-sprite.playSound(1); // 也可以使用索引
+## Statement functions
+
+| Call | Arguments | Becomes |
+|---|---|---|
+| `sound.playSound(name)` | sound name or number | `sound_play` |
+| `sound.playSoundUntilDone(name)` | sound name or number | `sound_playuntildone` |
+| `sound.stopAllSounds()` | — | `sound_stopallsounds` |
+| `sound.changeVolume(change)` | percentage points to add | `sound_changevolumeby` |
+| `sound.setVolume(volume)` | new volume as a percentage | `sound_setvolumeto` |
+| `sound.changeEffect(effect, change)` | effect name, amount | `sound_changeeffectby` |
+| `sound.setEffect(effect, value)` | effect name, new value | `sound_seteffectto` |
+| `sound.clearEffects()` | — | `sound_cleareffects` |
+
+## Value functions
+
+| Call | Returns |
+|---|---|
+| `sound.volume()` | the sprite's volume as a percentage (`sound_volume`) |
+
+## Playing sounds
+
+### `sound.playSound(name)`
+
+Starts the sound and returns immediately, so the blocks that follow run while the sound is still
+playing. Starting a second sound does not stop the first.
+
+```js
+sound.playSound("meow");
+looks.say("...and the cat said nothing.");
 ```
 
-播放指定名称或索引的声音文件。
+### `sound.playSoundUntilDone(name)`
 
-### playSoundUntilDone
+Starts the sound and waits for it to finish before continuing. Only the sound in *this* call is
+waited on.
 
-```javascript
-// 播放声音直到结束
-sprite.playSoundUntilDone("music");
+```js
+sound.playSoundUntilDone("music");
+looks.say("The music is over.");
 ```
 
-播放指定的声音文件，并等待直到声音播放完成。
+### `sound.stopAllSounds()`
 
-### stopAllSounds
+Stops every sound playing anywhere in the project, including sounds belonging to other sprites.
 
-```javascript
-// 停止所有声音
-stopAllSounds();
+```js
+sound.stopAllSounds();
 ```
 
-停止当前正在播放的所有声音。
+## Volume
 
-## 声音控制函数
+Volume is a percentage; `100` is the default, `0` is silent. Scratch clamps the result to
+`0`–`100`.
 
-### setVolume
+### `sound.changeVolume(change)` / `sound.setVolume(volume)`
 
-```javascript
-// 设置音量（百分比）
-sprite.setVolume(100); // 默认音量
-sprite.setVolume(50); // 音量减半
-sprite.setVolume(0); // 静音
+```js
+sound.setVolume(100);
+sound.changeVolume(-20); // quieter
+sound.changeVolume(20);  // back up
 ```
 
-设置声音的音量，以默认音量的百分比表示。
+### `sound.volume()`
 
-### changeVolume
+Reads the volume back as a number.
 
-```javascript
-// 修改音量
-sprite.changeVolume(10); // 增加10%
-sprite.changeVolume(-20); // 减少20%
-```
-
-增加或减少声音的音量。
-
-### volume
-
-```javascript
-// 获取或设置音量
-const currentVolume = sprite.volume;
-sprite.say(`当前音量: ${currentVolume}%`);
-```
-
-获取或设置角色的当前音量。
-
-## 音效控制函数
-
-### playDrum
-
-```javascript
-// 播放鼓点音效
-sprite.playDrum(1, 0.5); // 播放第一个鼓点，持续0.5拍
-sprite.playDrum("snare drum", 0.25); // 播放军鼓，持续0.25拍
-```
-
-播放指定的鼓点音效，第二个参数是持续时间（拍）。
-
-### playNote
-
-```javascript
-// 播放音符
-sprite.playNote(60, 0.5); // 播放中央C，持续0.5拍
-sprite.playNote("C4", 1); // 播放中央C，持续1拍
-```
-
-播放指定的音符，第一个参数可以是音符编号或音符名称，第二个参数是持续时间（拍）。
-
-### rest
-
-```javascript
-// 休止符
-sprite.rest(1); // 休止1拍
-```
-
-插入指定时长的休止符（无声）。
-
-## 声音特效函数
-
-### setInstrument
-
-```javascript
-// 设置乐器
-sprite.setInstrument(1); // 设置为钢琴
-sprite.setInstrument("guitar"); // 设置为吉他
-```
-
-设置播放音符时使用的乐器。
-
-### setTempo
-
-```javascript
-// 设置 tempo（速度）
-setTempo(60); // 设置为每分钟60拍
-setTempo(120); // 设置为每分钟120拍
-```
-
-设置音乐播放的速度（每分钟节拍数）。
-
-### changeTempo
-
-```javascript
-// 修改 tempo
-changeTempo(10); // 增加10拍每分钟
-changeTempo(-5); // 减少5拍每分钟
-```
-
-增加或减少音乐播放的速度。
-
-### tempo
-
-```javascript
-// 获取当前 tempo
-const currentTempo = tempo;
-sprite.say(`当前速度: ${currentTempo}拍/分钟`);
-```
-
-获取当前的音乐播放速度。
-
-## 录音和声音侦测
-
-### startSoundRecording
-
-```javascript
-// 开始录音
-startSoundRecording();
-```
-
-开始录制声音。
-
-### stopSoundRecording
-
-```javascript
-// 停止录音
-const recordedSound = stopSoundRecording();
-sprite.playSound(recordedSound);
-```
-
-停止录音并返回录制的声音。
-
-### isLoud
-
-```javascript
-// 检查是否有声音
-if (isLoud()) {
-  sprite.say("我听到声音了！");
+```js
+if (sound.volume() > 0) {
+    sound.setVolume(0);
+} else {
+    sound.setVolume(100);
 }
 ```
 
-检查麦克风是否检测到声音。
+## Sound effects
 
-### loudness
+### `sound.changeEffect(effect, change)` / `sound.setEffect(effect, value)`
 
-```javascript
-// 获取声音响度
-const soundLevel = loudness();
-sprite.say(`声音大小: ${soundLevel}`);
+Applies one of Scratch's two sound effects. The effect name is a string literal, matched
+case-insensitively and normalised to uppercase; anything else falls back to `PITCH`.
+
+| Effect | What it does |
+|---|---|
+| `"PITCH"` | raises or lowers the pitch |
+| `"PAN"` | shifts the sound left or right |
+
+```js
+sound.setEffect("PITCH", 20);
+sound.changeEffect("PAN", -10);
+sound.clearEffects();
 ```
 
-获取麦克风检测到的声音响度级别。
+### `sound.clearEffects()`
 
-## 注意事项
+Resets both sound effects to 0.
 
-1. 使用playSound时，程序会继续执行，不会等待声音播放完成
-2. 使用playSoundUntilDone时，程序会暂停直到声音播放完成
-3. 确保项目中已添加所需的声音文件
-4. 播放音符和使用乐器功能需要MIDI支持
-5. 录音功能需要用户授权麦克风访问
+## What is not here
+
+Scratch's **Music** extension — play drum, play note for beats, rest for beats, set instrument,
+set tempo, change tempo, tempo — is **not exposed** by this library, and jvavscratch registers no
+`music` library. The corresponding opcodes exist in the compiler's opcode table, but nothing maps
+a call onto them, so there is no way to reach them from the dialect today. If you need them, they
+must come from an installed package that registers its own library. The same is true of the
+Video Sensing and LEGO WeDo 2.0 blocks.
+
+Recording audio, and the loudness reporter, are not part of this library either —
+`sensing.loudness()` reports the microphone volume and is documented under
+[Built-in Functions](/api/builtins).
+
+## See also
+
+- [Looks](/api/looks) — graphic effects and speech bubbles, which pair with sound effects.
+- [Built-in Functions](/api/builtins) — `sensing.loudness()` for "how loud is it right now".
+- [API Examples](/api/examples) — a sound-and-animation example.
