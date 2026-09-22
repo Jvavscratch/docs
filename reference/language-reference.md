@@ -225,11 +225,6 @@ let _g_test = 5; // global variable "test"
 let _g__l_test = 5; // global variable "_l_test"
 ```
 
-> [!CAUTION]
-> The `_g_` prefix is currently stripped twice rather than once, so `let _g_test = 5;` declares a
-> variable called `t`, not `test`. Since variables are already global by default, write plain names
-> and ignore `_g_` until this is fixed.
-
 Although disabled, a cloud variable can be created by prefixing the name with `_c_`:
 
 ```js

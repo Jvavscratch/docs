@@ -51,16 +51,8 @@ Three prefixes change that. They are part of the identifier, and they are stripp
 
 **Cloud variables are disabled.** `_c_` is accepted and stripped, but the variable is created as an ordinary global — nothing is stored on a server. The prefix exists so that source written against it keeps compiling.
 
-::: warning `_g_` currently strips six characters, not three
-The implementation slices the prefix twice, so `_g_` removes three characters *two times over*:
-
-```js
-let _g_test = 5;        // creates a variable named "t"
-let _g__l_test = 6;     // creates a variable named "test"
-let _g_abcdefgh = 7;    // creates a variable named "defgh"
-```
-
-This is a bug, not a feature, but it is what the compiler does today, so do not rely on `_g_`. It is almost never needed anyway: a bare `let` is already global, and the only case where the explicit form matters is a global whose name collides with a `_l_` prefix pattern. Until it is fixed, prefer plain declarations and read the built `project.json` if you need to be sure what name you got.
+::: tip `_g_` works correctly
+The `_g_` prefix is stripped once and produces the expected variable name. It is functionally identical to a bare `let` (all variables are global by default), so you almost never need it. The only case where the explicit form matters is a global whose name collides with a `_l_` prefix pattern.
 :::
 
 ## Referencing

@@ -194,12 +194,6 @@ let _g_test = 5; // global variable "test"
 let _g__l_test = 5; // global variable "_l_test"
 ```
 
-::: warning 核对结论:`_g_` 目前有 bug
-生成器 `generator/src/generator/VariableDeclaration.ts` 里 `_g_` 分支把前缀**去掉了两次**(`slice(3)` 调了两遍),所以 `let _g_test = 5;` 实际声明出来的变量叫 **`t`**,不是 `test`;`_g__l_test` 会变成 `test` 而不是 `_l_test`。上面两行的注释与当前实现不符。
-
-由于变量本来就是全局的,建议先别用 `_g_`,写普通变量名即可。
-:::
-
 Although disabled, a cloud variable can be created by prefixing the name with `_c_`:
 ```js
 let _c_test = 5; // cloud variable "test"

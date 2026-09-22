@@ -98,10 +98,7 @@ const enTheme = {
     {
       text: 'Notes',
       items: [
-        { text: 'Early Design Notes', link: '/notes/' },
-        { text: 'Early Note · Project Analysis and Fix Plan (2026-01-25)', link: '/notes/early-plan-20260125' },
-        { text: 'Early Note · Project Analysis and Fix Plan (2026-01-27)', link: '/notes/early-plan-20260127' },
-        { text: 'Early Note · Bubble Sort in jvavscratch', link: '/notes/bubble-sort-walkthrough' }
+        { text: 'Notes', link: '/notes/' }
       ]
     },
     {
@@ -207,10 +204,7 @@ const zhTheme = {
     {
       text: '笔记',
       items: [
-        { text: '早期设计笔记', link: '/zh/notes/' },
-        { text: '早期笔记 · 项目分析与修复计划(2026-01-25)', link: '/zh/notes/early-plan-20260125' },
-        { text: '早期笔记 · 项目分析与修复计划(2026-01-27)', link: '/zh/notes/early-plan-20260127' },
-        { text: '早期笔记 · 用 jvavscratch 实现冒泡排序', link: '/zh/notes/bubble-sort-walkthrough' }
+        { text: '笔记', link: '/zh/notes/' }
       ]
     },
     {
