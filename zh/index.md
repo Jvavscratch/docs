@@ -23,22 +23,16 @@ hero:
 features:
   - title: 熟悉的语法
     details: 用你已经会的 JavaScript 写 Scratch 工程 —— 变量、函数、类、控制流都能用。
-    icon: 💻
   - title: 提前编译
     details: 源码在构建期就被翻译成 Scratch 积木。产出的 .sb3 里是积木,不是一个 JavaScript 解释器。
-    icon: ⚙️
   - title: 原生产物
     details: 每个构造都映射到真实的 Scratch 积木 opcode,并打包成原生 project.json,用 Scratch 或 TurboWarp 直接打开即可。
-    icon: 🔄
   - title: 可扩展的编译器
     details: 扩展包扩展的是**编译器本身** —— 可以添加全局变量、积木库,甚至整体改写某个 Babel 节点类型的生成方式。
-    icon: 🧩
   - title: 自带反编译器
     details: 把已有的 .sb3 反编译回 jvavscratch 工程,继续编辑。
-    icon: 🔍
   - title: 开源
     details: 采用 MPL-2.0 许可证,开放开发。
-    icon: 📚
 ---
 
 # jvavscratch

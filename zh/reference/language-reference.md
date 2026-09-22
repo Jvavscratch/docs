@@ -14,7 +14,7 @@ title: 语言参考
 
 <div align="center"> 
   
-# `✨ Jvavscratch`
+# Jvavscratch
 
 **Convert JavaScript code to a usable Scratch project in realtime.**
 
@@ -371,10 +371,10 @@ motion.turnRight(degrees: number);
 motion.turnLeft(degrees: number);
 motion.gotoXY(X: number, Y: number);
 motion.goto(object: string); // "mouse" / "random",或精灵名
-motion.glide(time: number, X: number, Y: number);
-motion.glideTo(time: number, object: string);
+motion.glide(secs: number, x: number, y: number);
+motion.glideTo(secs: number, target: string);
 motion.point(direction: number);
-motion.pointTowards(direction: string);
+motion.pointTowards(target: string);
 motion.changeX(value: number);
 motion.setX(value: number);
 motion.changeY(value: number);
@@ -416,9 +416,9 @@ broadcast.fire(name: string);
 broadcast.fireYield(name: string);
 
 control.wait(length: number);
-control.waitUntil(expression: string); // E.x: control.waitUntil("x < 3");
+control.waitUntil(expression: any); // E.x: control.waitUntil(operation.lessThan("x", 3));
 control.stop(type: "all" | "this script" | "other scripts in sprite");
-control.clone();
+control.clone(target: string); // "myself" or sprite name
 control.deleteClone();
 control.heartbeat(length: number);
 
@@ -548,7 +548,7 @@ Math.PI;         // -> math.pi()
 :::
 
 > [!WARNING]
-> `list.length("l")`(以及改写后会变成它的列表 `.length` 语法)会让 `transformSyntax` 的 `MemberExpression` 访问器陷入无限递归,构建时抛出并打印一条 `BABEL_TRANSFORM_ERROR` 栈。构建本身仍然成功、积木也照常生成,但**同一文件里其它所有改写都会被跳过**——比如 `**`、三元表达式会安静地保持原样不被翻译。把 `length` 调用单独放进一个文件可以规避。
+> `list.length("l")`（以及改写后会变成它的列表 `.length` 语法）会让 `transformSyntax` 的 `MemberExpression` 访问器陷入无限递归,构建时打印一条 `BABEL_TRANSFORM_ERROR` 栈信息。构建本身仍然成功、积木也照常生成,但**同一文件里其它所有改写都会被跳过**——比如 `**`、三元表达式会安静地保持原样不被翻译。把 `length` 调用单独放进一个文件可以规避。使用 `list.length("myList")` 显式调用形式也可以避免触发此问题。
 
 You, the user, can also define your own functions like in normal JS:
 

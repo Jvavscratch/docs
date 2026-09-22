@@ -23,22 +23,16 @@ hero:
 features:
   - title: Familiar syntax
     details: Write Scratch projects in the JavaScript you already know — variables, functions, classes, and control flow.
-    icon: 💻
   - title: Ahead-of-time compilation
     details: Source is translated into Scratch blocks at build time. The generated .sb3 contains blocks, not a JavaScript interpreter.
-    icon: ⚙️
   - title: Faithful output
     details: Every construct is mapped onto real Scratch opcodes and packed into a native project.json, so the result opens in Scratch or TurboWarp like any other project.
-    icon: 🔄
   - title: Extensible compiler
     details: Packages extend the compiler itself — adding globals, block libraries, or overriding how a whole Babel node type is generated.
-    icon: 🧩
   - title: Decompiler included
     details: Turn an existing .sb3 back into a jvavscratch project you can keep editing.
-    icon: 🔍
   - title: Open source
     details: Licensed under MPL-2.0 and developed in the open.
-    icon: 📚
 ---
 
 # jvavscratch

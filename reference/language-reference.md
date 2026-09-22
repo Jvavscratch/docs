@@ -20,7 +20,7 @@ title: Language Reference
 
 <div align="center">
 
-# `✨ Jvavscratch`
+# Jvavscratch
 
 **Convert JavaScript code to a usable Scratch project in realtime.**
 
@@ -406,10 +406,10 @@ motion.turnRight(degrees: number);
 motion.turnLeft(degrees: number);
 motion.gotoXY(X: number, Y: number);
 motion.goto(object: string); // "mouse" / "random", or a sprite name
-motion.glide(time: number, X: number, Y: number);
-motion.glideTo(time: number, object: string);
+motion.glide(secs: number, x: number, y: number);
+motion.glideTo(secs: number, target: string);
 motion.point(direction: number);
-motion.pointTowards(direction: string);
+motion.pointTowards(target: string);
 motion.changeX(value: number);
 motion.setX(value: number);
 motion.changeY(value: number);
@@ -451,9 +451,9 @@ broadcast.fire(name: string);
 broadcast.fireYield(name: string);
 
 control.wait(length: number);
-control.waitUntil(expression: string); // E.x: control.waitUntil("x < 3");
+control.waitUntil(expression: any); // E.x: control.waitUntil(operation.lessThan("x", 3));
 control.stop(type: "all" | "this script" | "other scripts in sprite");
-control.clone();
+control.clone(target: string); // "myself" or sprite name
 control.deleteClone();
 control.heartbeat(length: number);
 
@@ -572,8 +572,9 @@ Math.PI;         // math.pi()
 > `list.length(list)` — and the `someList.length` sugar that produces it — sends the syntax
 > rewriter into infinite recursion, which is caught and printed as a `BABEL_TRANSFORM_ERROR` stack
 > trace. The build still succeeds and the block is still emitted, but every *other* rewrite in that
-> file is skipped, so constructs such as `**` or a ternary quietly stay untranslated. Prefer
-> `list.getItemIndex`-free code, or move the `length` call into its own file.
+> file is skipped, so constructs such as `**` or a ternary quietly stay untranslated. Using the
+> explicit `list.length("myList")` form avoids triggering this issue. Alternatively, move the
+> `.length` call into its own file.
 
 You, the user, can also define your own functions like in normal JS:
 
